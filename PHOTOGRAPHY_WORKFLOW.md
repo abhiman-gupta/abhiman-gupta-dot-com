@@ -1,104 +1,44 @@
 # Photography workflow
 
-## The short version
+Each album is one folder. Adding photos means adding files; no code changes.
 
-The site has two photography collections: **Trips** and **Portraits**. Add
-photographs directly to the appropriate folder; do not make a subfolder for a
-particular trip, place, or person.
+## Add photos to an album
 
-```text
-photography/collections/trips/
-photography/collections/portraits/
-```
+1. In Lightroom, crop every photo to **4:3 or 3:4** (the build stops with an error if a photo is any other shape).
+2. Export as sRGB JPEG, quality 80–90, long edge about 2000–2400 px. Turn off location metadata in the export settings.
+3. Name the files in viewing order: `01.jpg`, `02.jpg`, `03.jpg`, … (numbers sort naturally, so `10.jpg` comes after `09.jpg`).
+4. Put them in the album's folder, e.g. `photography/collections/tucson-light/`.
+5. Commit and push to `main`. The site rebuilds and deploys by itself.
 
-Add the photographs to that folder in the order you want them displayed:
+The drying-line strip always shows 4 frames. If an album has fewer than 4 photos, the empty frames say **COMING SOON**.
 
-```text
-cover.jpg
-picture 1.jpg
-picture 2.jpg
-picture 3.jpg
-```
+## Start a new album
 
-The next local build or website publish automatically finds the photographs
-and puts them in that filename order. You do not need to add each photograph to
-the website by hand. Numbered names are sorted naturally, so `picture 10.jpg`
-comes after `picture 9.jpg`, not after `picture 1.jpg`.
+1. Make a folder with a short, lowercase, hyphenated name: `photography/collections/yosemite/`. That name becomes the address
+   (`abhimangupta.com/photography/yosemite/`).
+2. Add a `collection.json`:
 
-Each of those two folders already contains its `collection.json`; normally you
-only need to add or remove photographs.
+   ```json
+   {
+     "title": "Yosemite",
+     "location": "California",
+     "order": 3
+   }
+   ```
 
-The website treats each shoot or trip as a collection folder. GitHub Actions
-rebuilds `photography/collections.json` whenever `main` is updated, so the HTML
-does not need to be edited when photographs are added.
+   `order` sets its position on the drying line (1 is leftmost).
+3. Add photos as above.
 
-## Lightroom export
-
-- Export in sRGB.
-- Use JPEG at roughly 80–90 quality.
-- Limit the long edge to about 2400 px for normal gallery photographs.
-- Keep gallery photographs in the crop that suits the frame: horizontal,
-  vertical, square, 4:5, 3:4, 5:7, or another proportion.
-- Make a separate `cover.jpg` cropped to 5:7. The Polaroid cover is the only
-  image the website deliberately crops.
-- Name gallery files in viewing order. Either `001.jpg`, `002.jpg`, `003.jpg`
-  or `picture 1.jpg`, `picture 2.jpg`, `picture 3.jpg` works.
-
-## Folder structure
-
-```text
-photography/
-  collections/
-    trips/
-      collection.json
-      cover.jpg
-      picture 1.jpg
-      picture 2.jpg
-    portraits/
-      collection.json
-      cover.jpg
-      picture 1.jpg
-      picture 2.jpg
-```
-
-Do not add another folder inside `trips` or `portraits`. The collection scanner
-reads the image files placed directly in those folders.
-
-Optional captions and alt text go in the `captions` object:
-
-```json
-{
-  "captions": {
-    "001.jpg": "A person crossing a rain-soaked street in Baltimore",
-    "002.jpg": "Late afternoon light along the harbor"
-  }
-}
-```
-
-## Preview locally
+## Preview before publishing
 
 ```bash
-make photos
-make serve
+npm install
+npm run dev
 ```
 
-Then visit <http://localhost:8000>. The browser uses each gallery image's
-natural dimensions, so portrait and landscape exports retain their proportions
-and flow into the exhibition layout without being cropped.
+Then open http://localhost:4321/photography/.
 
-`make photos` is the fetch step: it rescans all collection folders and updates
-the photography manifest used by the site.
+## Notes
 
-## Publish
-
-GitHub Pages should be configured once with **Settings → Pages → Source →
-GitHub Actions**. After that, the normal publishing workflow is:
-
-```bash
-git add .
-git commit -m "Add Maryland photography collection"
-git push
-```
-
-The deployment workflow runs on pushes to `main`. On another branch, open a
-pull request and merge it into `main` when the preview is ready.
+- The website makes smaller WebP copies automatically; your original JPEGs are never served directly.
+- The repository is public: anything you commit is visible on GitHub, so only add photos you're happy to publish.

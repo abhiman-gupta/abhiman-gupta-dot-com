@@ -1,0 +1,21 @@
+---
+import { Image } from "astro:assets";
+import Base from "../layouts/Base.astro";
+import headshot from "../assets/images/headshot.jpg";
+---
+<Base
+  title="Abhiman Gupta"
+  description="Abhiman Gupta: third-year PhD student working on polarization ray tracing, computer rendering, and ophthalmology. Photographer."
+  current="home"
+  fullFooter
+>
+  <section class="hero wrap" aria-label="Introduction">
+    <div class="hero-text">
+      <h1 class="hero-name"><em>Hi, I'm</em> Abhiman</h1>
+      <p class="hero-lead">I'm a third-year PhD student working on the intersection of polarization ray tracing, computer rendering, and ophthalmology.</p>
+    </div>
+    <figure class="hero-photo">
+      <Image src={headshot} alt="Portrait of Abhiman Gupta" widths={[480, 720, 1080]} sizes="(max-width: 860px) 90vw, 40vw" loading="eager" />
+    </figure>
+  </section>
+</Base>

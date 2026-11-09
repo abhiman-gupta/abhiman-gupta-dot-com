@@ -1,25 +1,40 @@
-# abhiman-gupta-dot-com
+# abhimangupta.com
 
-Personal website for Abhiman Gupta.
+Personal website of Abhiman Gupta. Built with [Astro](https://astro.build), deployed to GitHub Pages.
 
-## Local preview
+## Run it locally
 
 ```bash
-make serve
+npm install
+npm run dev       # http://localhost:4321
+npm run build     # production build in dist/
+npm run preview   # serve the production build
 ```
 
-Then open <http://localhost:8000>.
+## What's where
 
-Photography collections are folder-driven. See
-[`PHOTOGRAPHY_WORKFLOW.md`](PHOTOGRAPHY_WORKFLOW.md) for the Lightroom export,
-collection, preview, and GitHub Pages workflow.
+| Path | What it is |
+| --- | --- |
+| `src/pages/` | Pages: Home, Professional, Photography (+ one page per album), Cool Stuff, 404 |
+| `src/layouts/Base.astro` | Header, footer, security policy, analytics |
+| `src/components/FilmStrip.astro` | The hanging film strips on the Photography page |
+| `src/lib/photos.ts` | Reads albums from `photography/collections/` at build time |
+| `src/styles/global.css` | Colors, type, layout |
+| `photography/collections/` | One folder per photo album (see `PHOTOGRAPHY_WORKFLOW.md`) |
+| `docs/revamp/` | Design system, decisions, security notes and plans for future pages (`05-FUTURE.md`) |
 
-## Google Analytics
+## Common edits
 
-The GitHub Pages build adds Google Analytics 4 when the repository variable
-`GA_MEASUREMENT_ID` is set to the site's public measurement ID (for example,
-`G-ABC123DEF4`). Local previews do not load Analytics, which keeps development
-traffic out of reports.
+- **Photos:** follow `PHOTOGRAPHY_WORKFLOW.md`.
+- **Shark Tank videos:** `src/pages/cool-stuff.astro`.
+- **Home text:** `src/pages/index.astro`.
 
-The deployed tag enables standard analytics while disabling advertising
-storage, Google Signals, and ad-personalization signals.
+## Deploy
+
+Every push to `main` builds and deploys via `.github/workflows/pages.yml`. Pull requests run a build check.
+Google Analytics 4 loads only when the repository variable `GA_MEASUREMENT_ID` is set (ads and signals disabled).
+
+## Security
+
+The site ships a strict Content-Security-Policy, self-hosts its fonts, and has no forms or server code.
+Account and DNS recommendations are in `docs/revamp/04-SECURITY.md`.

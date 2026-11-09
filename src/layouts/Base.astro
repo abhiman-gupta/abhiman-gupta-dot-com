@@ -1,0 +1,136 @@
+---
+import "@fontsource/dm-mono/400.css";
+import "@fontsource/dm-mono/500.css";
+import "@fontsource-variable/dm-sans";
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description: string;
+  /** Which nav item is current. */
+  current?: "home" | "professional" | "photography" | "cool-stuff";
+  /** Home shows the full contact footer; every other page shows only the copyright line. */
+  fullFooter?: boolean;
+}
+
+const { title, description, current, fullFooter = false } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const year = new Date().getFullYear();
+
+// GA4 is added only in production builds, and only with a valid measurement ID.
+const gaRaw = (import.meta.env.PUBLIC_GA_MEASUREMENT_ID ?? "").trim();
+const gaId = import.meta.env.PROD && /^G-[A-Z0-9]+$/.test(gaRaw) ? gaRaw : "";
+
+const csp = [
+  "default-src 'self'",
+  `script-src 'self'${gaId ? " https://www.googletagmanager.com" : ""}`,
+  `connect-src 'self'${gaId ? " https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com" : ""}`,
+  `img-src 'self' data:${gaId ? " https://*.google-analytics.com https://www.googletagmanager.com" : ""}`,
+  "style-src 'self'",
+  "font-src 'self'",
+  "frame-src https://www.youtube-nocookie.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'none'",
+  "upgrade-insecure-requests",
+].join("; ");
+
+const nav = [
+  { href: "/professional/", label: "Professional", key: "professional" },
+  { href: "/photography/", label: "Photography", key: "photography" },
+  { href: "/cool-stuff/", label: "Cool Stuff", key: "cool-stuff" },
+  { href: "/#contact", label: "Contact", key: "contact" },
+];
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta http-equiv="Content-Security-Policy" content={csp} />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <meta name="theme-color" content="#ecebe6" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta name="twitter:card" content="summary" />
+    {gaId && <script async src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}></script>}
+    {gaId && <script is:inline src="/scripts/ga-init.js" data-ga-id={gaId}></script>}
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <div class="grain" aria-hidden="true"></div>
+
+    <header class="site-header">
+      <div class="wrap header-row">
+        <a class="wordmark" href="/">Abhiman</a>
+        <nav class="nav" aria-label="Primary">
+          {nav.map((item) => (
+            <a href={item.href} aria-current={current === item.key ? "page" : undefined}>{item.label}</a>
+          ))}
+        </nav>
+        <button class="menu-btn" id="menuBtn" aria-expanded="false" aria-controls="menu">Menu</button>
+      </div>
+    </header>
+    <div class="menu" id="menu" hidden>
+      <button class="menu-close" id="menuClose">Close</button>
+      {nav.map((item) => <a href={item.href}>{item.label}</a>)}
+    </div>
+
+    <main id="main">
+      <slot />
+    </main>
+
+    <footer class={fullFooter ? "footer wrap" : "footer slim wrap"} id={fullFooter ? "contact" : undefined}>
+      {fullFooter && (
+        <>
+          <p class="footer-big">Say <em>hello.</em></p>
+          <div class="email-row">
+            <span class="email" id="email">abhimangupta@arizona.edu</span>
+            <button class="copy-btn" id="copyBtn" hidden>Copy email</button>
+          </div>
+        </>
+      )}
+      <div class="footer-row">
+        {fullFooter && (
+          <div class="links">
+            <a href="https://www.instagram.com/abhimangupta/" target="_blank" rel="noopener noreferrer">Instagram ↗</a>
+            <a href="https://www.linkedin.com/in/abhimangupta27/" target="_blank" rel="noopener noreferrer">LinkedIn ↗</a>
+          </div>
+        )}
+        <p class="label">© {year} Abhiman Gupta</p>
+      </div>
+    </footer>
+
+    <script>
+      const menu = document.getElementById("menu");
+      const menuBtn = document.getElementById("menuBtn");
+      const close = () => { if (menu && menuBtn) { menu.hidden = true; menuBtn.setAttribute("aria-expanded", "false"); } };
+      menuBtn?.addEventListener("click", () => {
+        if (!menu) return;
+        menu.hidden = false;
+        menuBtn.setAttribute("aria-expanded", "true");
+        document.getElementById("menuClose")?.focus();
+      });
+      document.getElementById("menuClose")?.addEventListener("click", close);
+      menu?.querySelectorAll("a").forEach((a) => a.addEventListener("click", close));
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape" && menu && !menu.hidden) { close(); menuBtn?.focus(); } });
+
+      const copyBtn = document.getElementById("copyBtn");
+      const email = document.getElementById("email");
+      if (copyBtn && email && navigator.clipboard) {
+        copyBtn.hidden = false;
+        copyBtn.addEventListener("click", () => {
+          navigator.clipboard.writeText(email.textContent ?? "").then(
+            () => { copyBtn.textContent = "Copied ✓"; setTimeout(() => (copyBtn.textContent = "Copy email"), 1800); },
+            () => { copyBtn.textContent = "Select and copy"; }
+          );
+        });
+      }
+    </script>
+  </body>
+</html>

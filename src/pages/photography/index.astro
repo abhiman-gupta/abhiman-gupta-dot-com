@@ -1,0 +1,64 @@
+---
+import Base from "../../layouts/Base.astro";
+import FilmStrip from "../../components/FilmStrip.astro";
+import { getAlbums } from "../../lib/photos";
+
+const albums = getAlbums();
+---
+<Base title="Photography · Abhiman Gupta" description="Photography by Abhiman Gupta, hung up to dry." current="photography">
+  <header class="page-head wrap">
+    <h1 class="page-title">Photo<em>graphy</em></h1>
+  </header>
+  <div class="line wrap">
+    {albums.map((album, i) => <FilmStrip album={album} index={i} />)}
+  </div>
+</Base>
+
+<style is:global>
+  /* Drying line: strips clipped to a rod, title above the rod. Each hanger draws its own rod segment so rows look continuous. */
+  .line {
+    --tagH: 92px; --rodH: 7px; --fw: 150px; --gap: clamp(10px, 2.5vw, 40px);
+    position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(40px, 6vw, 90px) var(--gap);
+    padding-bottom: clamp(70px, 10vw, 150px);
+  }
+  /* The first row's rod runs the full width; later rows draw rod segments behind their own strips. */
+  .line::before {
+    content: ""; position: absolute; left: max(16px, var(--gutter)); right: max(16px, var(--gutter)); top: var(--tagH); height: var(--rodH); border-radius: 4px;
+    background: linear-gradient(#cfcfcb, #7e7e7a 45%, #3c3c3a); box-shadow: 0 6px 14px -4px rgba(0, 0, 0, 0.35); z-index: 1;
+  }
+  @media (max-width: 1000px) { .line { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .hanger { position: relative; display: grid; justify-items: center; min-width: 0; }
+  .hanger::before {
+    content: ""; position: absolute; left: calc(var(--gap) / -2); right: calc(var(--gap) / -2); top: var(--tagH); height: var(--rodH);
+    background: linear-gradient(#cfcfcb, #7e7e7a 45%, #3c3c3a); box-shadow: 0 6px 14px -4px rgba(0, 0, 0, 0.35); z-index: 1;
+  }
+  .tag { height: var(--tagH); display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 14px; text-align: center; }
+  .tag strong { font: 400 clamp(1.1rem, 1.8vw, 1.6rem)/1.1 var(--display); letter-spacing: var(--d-track-sm); color: var(--ink); transition: color 0.3s; }
+  .swing { position: relative; z-index: 2; display: grid; justify-items: center; width: 100%; transform-origin: 50% calc(var(--rodH) / 2); animation: swing var(--d, 5s) ease-in-out var(--delay, 0s) infinite alternate; }
+  /* 2D only: a strip paused mid-3D-rotation renders blurry. */
+  @keyframes swing { from { transform: rotate(calc(-1 * var(--amp, 1.6deg))); } to { transform: rotate(var(--amp, 1.6deg)); } }
+  .hanger:hover .swing, .hanger:focus-visible .swing { animation-play-state: paused; }
+  /* Each strip sways at its own tempo (no inline styles, so the CSP stays strict). */
+  .hanger:nth-child(5n+1) .swing { --d: 5.2s; --delay: 0s; --amp: 1.1deg; }
+  .hanger:nth-child(5n+2) .swing { --d: 6.03s; --delay: -1.37s; --amp: 1.57deg; }
+  .hanger:nth-child(5n+3) .swing { --d: 6.86s; --delay: -2.74s; --amp: 2.04deg; }
+  .hanger:nth-child(5n+4) .swing { --d: 5.29s; --delay: -0.11s; --amp: 1.41deg; }
+  .hanger:nth-child(5n+5) .swing { --d: 6.12s; --delay: -1.48s; --amp: 1.88deg; }
+  .clip { position: relative; z-index: 3; width: calc(min(100%, var(--fw)) + 8px); height: 18px; border-radius: 2px 2px 3px 3px; background: linear-gradient(#e6e6e2, #9c9c98 50%, #5e5e5b); box-shadow: 0 4px 8px -2px rgba(0, 0, 0, 0.45); }
+  .clip::before { content: ""; position: absolute; left: 50%; top: -10px; width: 14px; height: 14px; transform: translateX(-50%); border: 3px solid #b3b3af; border-bottom: 0; border-radius: 10px 10px 0 0; }
+  .clip::after { content: ""; position: absolute; left: 3px; right: 3px; bottom: -2px; height: 3px; background: repeating-linear-gradient(90deg, #4a4a47 0 2px, transparent 2px 5px); }
+  .film-svg { display: block; width: min(100%, var(--fw)); height: auto; margin-top: -9px; overflow: visible; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.18)) drop-shadow(6px 14px 14px rgba(0, 0, 0, 0.16)); }
+  .film-svg text { font: 700 1.15px var(--sans); letter-spacing: 0.1px; fill: var(--film-ink); }
+  .film-svg .soon-text { font: 500 2.5px var(--display); letter-spacing: 0.3px; fill: rgba(236, 236, 230, 0.82); }
+  .film-svg .pic { opacity: 0.94; transition: opacity 0.35s; }
+  .film-svg .warm { opacity: 0; transition: opacity 0.35s; }
+  .weight { position: relative; z-index: 3; width: calc(min(100%, var(--fw)) + 8px); height: 20px; margin-top: -10px; border-radius: 3px 3px 4px 4px; background: linear-gradient(#d2d2ce, #80807c 50%, #4a4a47); box-shadow: 0 8px 12px -4px rgba(0, 0, 0, 0.45); }
+  .hanger:hover .film-svg, .hanger:focus-visible .film-svg {
+    filter: drop-shadow(1.5px 0 0 var(--glow)) drop-shadow(-1.5px 0 0 var(--glow)) drop-shadow(0 1.5px 0 var(--glow)) drop-shadow(0 -1.5px 0 var(--glow)) drop-shadow(6px 14px 14px rgba(0, 0, 0, 0.16));
+  }
+  .hanger:hover .film-svg .warm, .hanger:focus-visible .film-svg .warm, .hanger:hover .film-svg .pic, .hanger:focus-visible .film-svg .pic { opacity: 1; }
+  .hanger:hover .tag strong, .hanger:focus-visible .tag strong { color: var(--glow); }
+  .hanger:focus-visible { outline: none; }
+  @media (max-width: 640px) { .line { --tagH: 100px; --fw: 132px; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (prefers-reduced-motion: reduce) { .swing { animation: none; } }
+</style>
