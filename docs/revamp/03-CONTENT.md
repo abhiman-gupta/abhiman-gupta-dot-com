@@ -15,22 +15,25 @@ Treat *[history]* items as probably true but not yet confirmed for the new site.
 - Polarization Lab, advisor Dr. Meredith Kupinski, co-advisor Dr. Matthew Kupinski
 - BS Biomedical Engineering, University of Arizona, May 2024 *[history]*
 - Based in Tucson, AZ
-- Headshot: `images/headshot.jpg` (metadata stripped)
+- Headshot: `images/headshot.jpg` (metadata stripped), 1584 × 2217 px (~5:7). For the Home hero, crop the original `images/headshot.jpg` (1584 × 2217 px, ~5:7) to **3:4, 1350 × 1800 px at x=95, y=45** (slightly loose: headroom, shoulders and full collar, ends around the first button; Abhiman found 1200 × 1600 too tight).
 
 ## Brand brief *[brief]*
 
 Cool, not that nerdy. Attractive lifestyle/travel photographer and a meaningful, artistic one. Wants a minimal,
-monochrome (black-and-white) site where the photographs carry the color. The home page opens with the PhD line,
+monochrome (black-and-white) site where the photographs carry the color. The home page opens with "Hi, I'm Abhiman" and his research line,
 then a brief, designed summary of his path (not a résumé).
 
-## What he works on (one line for Home, longer for About)
+## What he works on
 
-Two phrasings exist; they describe the same work. `TODO`: Abhiman picks the plain-language one-liner.
-- "Real-time computer rendering methods for applications in ophthalmology." (live site)
-- "A polarimetric model of the eye for studying diseases including keratoconus, cataracts, and retinal
-  degeneration, connecting optical engineering, ophthalmology, and computer graphics." (live `/academia/`)
-- **Removed from the Home hero by Abhiman (2026-11-09):** the research one-liner, the "Tucson, Arizona" coordinates line, and
-  "And for more than ten years, chasing light with a camera." The hero is name + PhD line + links until he writes new lines. `TODO(copy)`
+**Approved by Abhiman (2026-11-09), use verbatim on Home:**
+
+> Hi, I'm Abhiman
+>
+> I'm a third-year PhD student working on the intersection of polarization ray tracing, computer rendering, and ophthalmology.
+
+Longer descriptions from the old site, for the Professional page if needed:
+- "Real-time computer rendering methods for applications in ophthalmology."
+- "A polarimetric model of the eye for studying diseases including keratoconus, cataracts, and retinal degeneration, connecting optical engineering, ophthalmology, and computer graphics."
 
 ## Path highlights (the Professional page, draft)
 
@@ -45,6 +48,16 @@ decide what stays; nothing here goes on Home.
 | Photography | Photographing for 10+ years; recent focus on portraits; "4× award-winning photographer" / "four local awards" | live + *[history]* |
 | Teaching | Outstanding Teaching Assistant Award, University of Arizona, 2025 | live |
 | Engineering design | Roche Tissue Diagnostics Award for Most Innovative Engineering Design, 2025 | live |
+
+**From his public LinkedIn and Polarization Lab bio (checked 2026-11-09):**
+- Alcon (Lake Forest, CA), May–Aug 2025: mid-IR optical fiber development for eye surgery (cataract and glaucoma devices).
+- Microvascular Therapeutics (Tucson), Jan–Aug 2024: ultrasound contrast agents for treating thrombosis.
+- Startup accelerator: **Startup Wildcats**, Resident Advisor, Aug–Dec 2023 (startup growth acceleration and diligence screening).
+- Center for Creative Photography, Oct 2021–May 2022: Digital Imaging Technician (imaging systems, image-quality control).
+- Graduate TA, Fourier Transforms in Optics, Aug–Dec 2025; undergrad TA, biomedical instrumentation, Jan–May 2024.
+- Lab tour leader, "Polarization Ray Tracing", Wyant College Industrial Affiliates event.
+- Lab bio: research on "a polarimetric eye model for studying the propagation of polarized light through healthy and diseased human eyes."
+- **Mismatch to resolve:** LinkedIn dates the Outstanding TA and Roche awards to 2024; the current site says 2025.
 
 `TODO` from Abhiman:
 - The brief says "pharma **companies**", plural. Only Microvascular Therapeutics is on record. Which others?
@@ -74,7 +87,13 @@ PhD rotations in PS-OCT (Dr. Travis Sawyer, Fall 2024) and selective-illuminatio
 
 ## Photography
 
-- **No photos are uploaded yet.** Every gallery must ship with a designed empty state.
+- **First real collection (2026-11-09): "Albuquerque Balloon Festival"** (New Mexico, year `TODO`), 2 photos, both 1500 × 2000 (3:4), no metadata:
+  1. balloon with burner lit and a US flag hanging below the basket (shown first), 2. sunrise behind balloons on the launch field.
+  Originals were shared in chat and are not in the repo yet. Captions in the mockup are placeholders (`TODO(copy)`).
+- **Second real collection: "Tucson Light"** (Arizona, year `TODO`), shown right after the balloon festival. 2 photos, both 1500 × 2000 (3:4), no metadata:
+  1. backlit saguaro field at golden hour with a rainbow lens flare (shown first), 2. full moon over a ridge of saguaros at dusk, blurred saguaro in front.
+  No captions. Originals were shared in chat and are not in the repo yet.
+- **Only these two albums are on the site for now** (placeholder albums removed 2026-11-09). Empty strip slots say COMING SOON. Every gallery must ship with a designed empty state.
 - New model: one folder per collection, e.g. `photography/collections/yosemite/` *[brief]*. The existing `portraits/` and `trips/` folders are empty shells.
 - `TODO`: the first collections and their photos (Yosemite plus others), 3–5 hero/featured frames for Home.
 - Export guide: sRGB JPEG, quality 80–90, long edge ~2400 px, **crop every photo to 4:3 or 3:4** *[brief]*. No separate cover crops.
@@ -102,7 +121,7 @@ Each item needs: name, link, one-line "why" in his voice (`TODO(copy)`), plus a 
 
 ## Contact
 
-- Email: abhimangupta@arizona.edu (live). `abhiman@abhimangupta.com` is a real Zoho mailbox on his domain (MX → Zoho). `TODO`: which is public?
+- Email: abhimangupta@arizona.edu (live). `abhiman@abhimangupta.com` is a real mailbox on his domain, on Zoho today; he plans to move it to iCloud+ and drop Zoho. `TODO`: which is public?
 - LinkedIn: https://www.linkedin.com/in/abhimangupta27/
 - Instagram: @abhimangupta only (above)
 - Purpose line (live): "For research, internships, content, or portraits." (Portrait inquiries are still welcome.)
@@ -111,4 +130,4 @@ Each item needs: name, link, one-line "why" in his voice (`TODO(copy)`), plus a 
 
 - Fonts: Source Sans 3 + Source Serif 4 variable woff2 with OFL licenses in `21be3f3:fonts/Source/` *[draft]*. The new system uses **DM Mono + DM Sans** instead (OFL); the Source fonts aren't needed.
 - The lens/ray loader SVG is retired.
-- Footer: "© 2026 Abhiman Gupta"
+- Footer: "© <current year> Abhiman Gupta" only; don't show the city or local time

@@ -22,7 +22,6 @@ added, removed or reordered without code changes. Match the mockup's Professiona
 - A big serif line + the purpose line (`contact.yaml`).
 - Large email link with a copy-to-clipboard button ("Copied" feedback, `aria-live`); falls back to `mailto:` without JS.
 - Rows for Instagram (@abhimangupta) and LinkedIn. **No @portraits.by.abhiman** (being deleted); portrait inquiries go through email or Instagram.
-- A small edge-label block: local Tucson time (live), "Based in Tucson, AZ".
 - No form.
 
 ## 404 ("overexposed")

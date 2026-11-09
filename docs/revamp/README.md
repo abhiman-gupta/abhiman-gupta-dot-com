@@ -20,6 +20,7 @@ Its photos are generated placeholders and its copy is draft. Where the docs and 
    3. [`02-ARCHITECTURE.md`](02-ARCHITECTURE.md): Astro structure, the copy system, the photo data API, file ownership, deploy
    4. [`03-CONTENT.md`](03-CONTENT.md): every known fact about Abhiman, and what's still TODO
    5. [`04-SECURITY.md`](04-SECURITY.md): security findings, Abhiman's to-dos, and rules every build task follows
+   6. [`05-FUTURE.md`](05-FUTURE.md): everything planned for later, with the design already decided
 2. Open [`STATUS.md`](STATUS.md) and pick a task whose dependencies are **done**.
 3. Mark it `in progress` in `STATUS.md` with your agent/session name.
 4. Do only what the task file says. Touch only the files it says you **own**.

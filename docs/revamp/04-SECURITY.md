@@ -57,7 +57,14 @@ Ranked by how much harm each prevents. None of these depend on the revamp.
 **Nice to have**
 
 9. Add GitHub Pages' AAAA (IPv6) records for the apex (listed in GitHub's custom-domain docs).
-10. Use your own domain email (`abhiman@abhimangupta.com` on Zoho) as the public address instead of your university email: it
+10. **Decided (2026-11-09), to do later: move domain email from Zoho to iCloud+ Custom Email Domain.** Abhiman has iCloud+, which includes custom email domains, so
+    `@abhimangupta.com` mail could run through iCloud Mail instead of Zoho. Setup happens in iCloud settings (Custom Email Domain), and Apple gives
+    the exact MX, SPF, DKIM and verification records to add at the DNS provider. Caveats: the domain's MX records can point to only one mail
+    provider, so switching replaces Zoho (move any mail you want to keep first). At switch time: remove Zoho's MX records, its SPF include
+    (`dc-8e814c8572._spfm`) and its DKIM record (`zmail._domainkey`), add Apple's records, then add/update DMARC. Cancel Zoho only after
+    iCloud receives mail. Apple's limits (number of domains
+    and addresses per domain) should be checked in its current documentation at setup time.
+11. Use your own domain email (`abhiman@abhimangupta.com` on Zoho) as the public address instead of your university email: it
     survives graduation and keeps your university inbox off scraper lists.
 
 ## 3. Rules for the revamp build (agents must follow)
@@ -68,8 +75,8 @@ Ranked by how much harm each prevents. None of these depend on the revamp.
   `default-src 'self'; script-src 'self' https://www.googletagmanager.com; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; img-src 'self' data: https://*.google-analytics.com https://www.googletagmanager.com; style-src 'self'; font-src 'self'; frame-src https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'none'; upgrade-insecure-requests`.
   Drop the Google entries if analytics changes; add only what's actually used. Allow `'unsafe-inline'` for styles only if Astro's
   inlined CSS makes it unavoidable, and say so in the handoff.
-- **No inline scripts.** Move the GA bootstrap (and the theme no-flash script, if possible) into small files under `/scripts/`
-  so `script-src` needs no `'unsafe-inline'`. If the no-flash theme script must stay inline, allow it by hash.
+- **No inline scripts.** Move the GA bootstrap into a small file under `/scripts/` so `script-src` needs no `'unsafe-inline'`.
+  (There's no theme toggle in Phase 1, so no no-flash theme script is needed.)
 - `<meta name="referrer" content="strict-origin-when-cross-origin">` on every page.
 - Things a meta tag can't do (HSTS preload, `frame-ancestors`, `Permissions-Policy`) need real headers. If wanted later, put
   Cloudflare in front of Pages or move to a host with a headers file. **Not required for Phase 1.**

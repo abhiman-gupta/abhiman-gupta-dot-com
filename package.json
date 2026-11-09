@@ -1,12 +1,16 @@
 {
-  "name": "abhiman-gupta-personal-site",
-  "version": "1.0.0",
+  "name": "abhimangupta-com",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "photos": "python3 scripts/build_photography.py",
-    "check": "node --check script.js && node --check photography/photography.js",
-    "build": "npm run photos && npm run check && node scripts/build_site.mjs",
-    "build:pages": "npm run photos && npm run check && node scripts/build_pages.mjs"
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@fontsource-variable/dm-sans": "5.3.0",
+    "@fontsource/dm-mono": "5.3.0",
+    "astro": "5.18.2"
   }
 }

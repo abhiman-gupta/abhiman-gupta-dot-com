@@ -1,0 +1,23 @@
+---
+import Base from "../layouts/Base.astro";
+---
+<Base title="Cool Stuff · Abhiman Gupta" description="Things Abhiman Gupta recommends, starting with favorite Shark Tank pitches." current="cool-stuff">
+  <header class="page-head wrap">
+    <h1 class="page-title">Cool <em>Stuff</em></h1>
+  </header>
+  <section class="section wrap" aria-labelledby="pitches">
+    <h2 class="section-title" id="pitches">Shark Tank pitches</h2>
+    <figure class="video">
+      <div class="video-frame">
+        <iframe
+          src="https://www.youtube-nocookie.com/embed/xm1ShtnwIgU"
+          title="Polygons: Rahul Agarwal's Shark Tank pitch"
+          allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          referrerpolicy="strict-origin-when-cross-origin"
+          allowfullscreen
+        ></iframe>
+      </div>
+      <figcaption><strong>Polygons</strong><span class="label">Rahul Agarwal</span></figcaption>
+    </figure>
+  </section>
+</Base>

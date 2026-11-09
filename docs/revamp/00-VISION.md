@@ -33,11 +33,12 @@ frame numbers, the way a strip moves).
 | Monochrome UI: white/black, greys, no accent colors | Abhiman, 2026-11-09: "black-and-white… looks minimal" |
 | Only color = photographs + an amber glow on hovered film | Abhiman asked to keep the amber glow |
 | Photography index is a **darkroom drying line** | Abhiman's idea |
+| Rotating cylinder carousel tried and **rejected** in favor of the drying line | Abhiman, 2026-11-09 |
 | Film looks like **real developed 35mm**: grey translucent base, real perforations, edge print | Abhiman: "more like the real film" |
 | **Every photo is 4:3 or 3:4** | Abhiman |
 | One folder = one collection (e.g. *Yosemite*) | Abhiman |
 | No @portraits.by.abhiman anywhere (account is being deleted); portraits still appear as a collection | Abhiman |
-| Hero is only name + PhD line + links for now; personal lines come later | Abhiman removed the location line, the research one-liner, and the "ten years" line |
+| **Hero: headshot (no caption) beside "Hi, I'm Abhiman" and his own research line** (exact copy in `03-CONTENT.md`) | Abhiman, 2026-11-09 |
 | **Font: DM Mono (display) + DM Sans (text). No italics.** Picked from five candidates in the mockup's font bar | Abhiman: "a non-italic main font", then "I like the DM Mono font" |
 | **Header: "Abhiman" · Professional · Photography · Cool Stuff · Contact** (first name only in the wordmark) | Abhiman |
 | **Articles are Phase 2**: not in the menu, no placeholder article; the design and template stay documented (T07) | Abhiman: "keep articles in notes… we'll add later" |
@@ -48,19 +49,16 @@ frame numbers, the way a strip moves).
 
 ## Signature moments
 
-1. **The drying line (Photography index).** A dark room with a metal rod across the page. Each collection is a
+1. **The drying line (Photography index).** On the same Bone background as Home, a metal rod runs across the page. Each collection is a
    strip of developed 35mm film clipped to the rod with a steel clip, a weighted clip at the bottom, showing its first
-   4–5 frames. The collection name and frame count sit **just above the rod**, over their strip. Strips sway
-   slowly, each at its own tempo, with a slight twist. A soft light behind the line shows through the translucent
+   4–5 frames. The collection name (title only) sits **just above the rod**, over their strip. Strips sway
+   slowly, each at its own tempo (flat side-to-side swing, no 3D twist, so a paused strip stays sharp). A soft light behind the line shows through the translucent
    film and its perforation holes. **Hover or keyboard focus freezes the strip**; its outline and label glow amber,
    the light behind it warms, and its frames brighten. **Click opens the collection** in the film roll viewer.
 2. **Film roll viewer.** The collection as a horizontal strip of the same film. The current frame sits centered at
    full opacity; neighbors stay full size but dim (±1 ≈ 0.35, ±2 ≈ 0.12). Drag/swipe, arrow keys, trackpad, or tap a
-   neighbor to advance; the strip glides with inertia and snaps. Caption, place, and date sit underneath. A
-   "contact sheet" toggle shows every frame as a grid.
-3. **A simple, confident hero.** *(Phase 1)* Big serif name, then "Third-year PhD student in Optical Sciences at the University
-   of Arizona," with links to the photographs and articles. Beside it, one of his photographs slowly crossfades
-   through 3–5 featured frames. More personal lines will be added later.
+   neighbor to advance; the strip glides with inertia and snaps. Caption, place, and date sit underneath.
+3. **A simple, confident hero.** *(Phase 1)* "Hi, I'm Abhiman" (with "Hi, I'm" in grey), then his line: "I'm a third-year PhD student working on the intersection of polarization ray tracing, computer rendering, and ophthalmology." No links under it for now. Beside it, his **headshot with no caption or title**, cropped to head and collar.
 4. **Path as frames, not a résumé.** *(Phase 1 draft, on the Professional page; Abhiman refines what it shows)* Previous work as a short strip of 4–6 print-style cards (lasers for eye
    surgery, drug delivery, startup scholarship, award-winning photography, teaching award). Each has an image,
    a 2–5 word title, the organization as a small label, and one line. No dates column, no bullets, no timeline.
@@ -87,7 +85,7 @@ frame numbers, the way a strip moves).
 | --- | --- |
 | Instagram followers, potential portrait clients (mostly mobile) | The photos, the vibe, how to get in touch |
 | Readers arriving from a shared article | The article, then more articles and picks |
-| Academics, recruiters | The PhD line, path highlights, About/CV, contact |
+| Academics, recruiters | The research line, the Professional page, contact |
 
 ## Phases: start small, add incrementally
 
@@ -95,7 +93,7 @@ frame numbers, the way a strip moves).
 
 | Route | Purpose |
 | --- | --- |
-| `/` | Hero (name + PhD line + links to Photography and Professional), selected photographs, Cool Stuff teaser, contact in the footer |
+| `/` | Just the hero ("Hi, I'm Abhiman" + research line + headshot, no links) and the footer. Photography and Cool Stuff sections come later |
 | `/professional/` | Draft: PhD and lab line, path cards (Alcon, Microvascular Therapeutics, FORGE, teaching award), compact publications and recognition, Google Scholar link |
 | `/photography/` | Drying line: one hanging film strip per collection |
 | `/photography/[slug]/` | Film roll viewer for one collection |

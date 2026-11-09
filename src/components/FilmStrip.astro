@@ -1,0 +1,76 @@
+---
+/**
+ * One hanging 35 mm film strip, drawn in millimetres to real geometry (docs/revamp/01-DESIGN-SYSTEM.md):
+ * 35 mm base, 24 × 32 mm frames, KS perforations cut through every 4.75 mm, frame numbers in the rebate.
+ * Always 4 frames; missing frames read COMING SOON. Landscape photos hang sideways like real negatives.
+ */
+import { getImage } from "astro:assets";
+import type { Album } from "../lib/photos";
+
+interface Props { album: Album; index: number }
+const { album, index } = Astro.props;
+
+const FRAMES = 4, TOP = 6, PITCH = 34;
+const L = TOP + FRAMES * PITCH + 6;
+const id = `fs-${album.slug}`;
+const start = 1 + ((index * 7) % 12);
+
+const thumbs = await Promise.all(
+  album.photos.slice(0, FRAMES).map((p) => getImage({ src: p.image, width: 480, format: "webp", quality: 82 }))
+);
+
+const edgeText = (x: number, y: number, s: string, rot: number) =>
+  `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" transform="rotate(${rot} ${x} ${y})">${s}</text>`;
+
+let perfs = "";
+for (let y = 0.9; y + 1.98 < L - 0.3; y += 4.75) {
+  const yy = y.toFixed(2);
+  perfs += `<rect x="1.9" y="${yy}" width="2.8" height="1.98" rx="0.42"/><rect x="30.3" y="${yy}" width="2.8" height="1.98" rx="0.42"/>`;
+}
+
+let defs =
+  `<linearGradient id="${id}-g" x1="0" x2="1" y1="0" y2="0">` +
+  `<stop offset="0" stop-color="#aaaca7" stop-opacity=".92"/><stop offset=".045" stop-color="#8f918c" stop-opacity=".88"/>` +
+  `<stop offset=".3" stop-color="#83857f" stop-opacity=".86"/><stop offset=".56" stop-color="#8d8f8a" stop-opacity=".87"/>` +
+  `<stop offset=".64" stop-color="#8d8f8a" stop-opacity=".87"/><stop offset=".72" stop-color="#898b86" stop-opacity=".87"/>` +
+  `<stop offset=".955" stop-color="#858782" stop-opacity=".87"/><stop offset="1" stop-color="#a7a9a4" stop-opacity=".92"/></linearGradient>` +
+  `<linearGradient id="${id}-v" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".1"/><stop offset=".45" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".1"/></linearGradient>` +
+  `<filter id="${id}-b" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="0.45"/></filter>` +
+  `<mask id="${id}-m"><rect width="35" height="${L}" fill="#fff"/><g fill="#000">${perfs}</g></mask>`;
+
+let body = "", edge = "";
+for (let i = 0; i < FRAMES; i++) {
+  const y0 = TOP + i * PITCH, cx = 17.5, cy = y0 + 16, num = start + i;
+  body += `<rect x="4.9" y="${y0 - 0.6}" width="25.2" height="33.2" rx="1.1" fill="#1d1e1c" opacity=".5" filter="url(#${id}-b)"/>`;
+  const photo = album.photos[i];
+  if (photo && thumbs[i]) {
+    defs += `<clipPath id="${id}-c${i}"><rect x="5.5" y="${y0}" width="24" height="32" rx="0.7"/></clipPath>`;
+    const img = photo.orientation === "landscape"
+      ? `<image href="${thumbs[i].src}" x="${cx - 16}" y="${cy - 12}" width="32" height="24" preserveAspectRatio="xMidYMid slice" transform="rotate(-90 ${cx} ${cy})"/>`
+      : `<image href="${thumbs[i].src}" x="5.5" y="${y0}" width="24" height="32" preserveAspectRatio="xMidYMid slice"/>`;
+    body += `<g class="pic" clip-path="url(#${id}-c${i})">${img}<rect x="5.5" y="${y0}" width="24" height="32" fill="none" stroke="rgba(0,0,0,0.35)" stroke-width="0.5"/></g>`;
+  } else {
+    body += `<rect x="5.5" y="${y0}" width="24" height="32" rx="0.7" fill="#3a3b39"/>` +
+      `<text class="soon-text" x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central">COMING SOON</text>`;
+  }
+  edge += edgeText(0.95, y0 + 8, String(num), -90) + edgeText(0.95, y0 + 25, `▸ ${num}A`, -90);
+}
+
+const svg =
+  `<svg class="film-svg" viewBox="0 0 35 ${L}" aria-hidden="true"><defs>${defs}</defs><g mask="url(#${id}-m)">` +
+  `<rect width="35" height="${L}" fill="url(#${id}-g)"/><rect width="35" height="${L}" fill="url(#${id}-v)"/>` +
+  `<rect class="warm" width="35" height="${L}" fill="rgba(255,170,84,0.3)"/>${body}</g>` +
+  `<g fill="none" stroke="rgba(255,255,255,0.32)" stroke-width="0.09">${perfs}</g>` +
+  `<line x1="0.06" y1="0" x2="0.06" y2="${L}" stroke="rgba(255,255,255,0.45)" stroke-width="0.1"/>` +
+  `<line x1="34.94" y1="0" x2="34.94" y2="${L}" stroke="rgba(255,255,255,0.4)" stroke-width="0.1"/>` +
+  `<rect width="35" height="${L}" fill="none" stroke="rgba(0,0,0,0.28)" stroke-width="0.08"/>${edge}</svg>`;
+
+---
+<a class="hanger" href={`/photography/${album.slug}/`} aria-label={`Open ${album.title}`}>
+  <span class="tag"><strong>{album.title}</strong></span>
+  <span class="swing">
+    <span class="clip"></span>
+    <Fragment set:html={svg} />
+    <span class="weight"></span>
+  </span>
+</a>

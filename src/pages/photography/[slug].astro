@@ -1,0 +1,185 @@
+---
+import { getImage } from "astro:assets";
+import Base from "../../layouts/Base.astro";
+import { getAlbums, type Album } from "../../lib/photos";
+
+export function getStaticPaths() {
+  return getAlbums().map((album) => ({ params: { slug: album.slug }, props: { album } }));
+}
+
+const { album } = Astro.props as { album: Album };
+const frames = await Promise.all(
+  album.photos.map(async (p, i) => {
+    const ar = p.orientation === "portrait" ? 3 / 4 : 4 / 3;
+    const widths = p.orientation === "portrait" ? [450, 900, 1350] : [800, 1200, 1600];
+    const img = await getImage({ src: p.image, widths, format: "webp", quality: 85 });
+    return { i, ar, src: img.src, srcset: img.srcSet.attribute };
+  })
+);
+---
+<Base title={`${album.title} · Photography · Abhiman Gupta`} description={`${album.title}: photographs by Abhiman Gupta.`} current="photography">
+  <section class="roll-view" aria-label="Film roll">
+    <div class="roll-top wrap"><a href="/photography/">← All collections</a></div>
+    <div class="strip-viewport" id="viewport" tabindex="0" role="region" aria-roledescription="film roll" aria-label={`${album.title}. Use the left and right arrow keys to move between frames.`}>
+      <div class="strip" id="strip">
+        {frames.map((f) => (
+          <div class="slot" data-i={f.i} data-ar={f.ar}>
+            <span class="num">{f.i + 1} <span aria-hidden="true">▸</span> {f.i + 1}A</span>
+            <img src={f.src} srcset={f.srcset} sizes="(max-width: 700px) 84vw, 60vw" alt={`${album.title}, frame ${f.i + 1}`} draggable="false" loading={f.i < 3 ? "eager" : "lazy"} />
+          </div>
+        ))}
+      </div>
+    </div>
+    <div class="roll-meta wrap">
+      <h1 class="roll-title">{album.title}</h1>
+      <div class="roll-nav">
+        <button id="prevBtn" aria-label="Previous frame">←</button>
+        <button id="nextBtn" aria-label="Next frame">→</button>
+      </div>
+    </div>
+    <p class="sr-only" aria-live="polite" id="rollLive"></p>
+  </section>
+</Base>
+
+<style is:global>
+  .roll-view { min-height: calc(100svh - 68px); display: flex; flex-direction: column; padding-bottom: 40px; }
+  .roll-top { padding-block: 18px; }
+  .roll-top a { font: 600 0.75rem/1 var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+  .roll-top a:hover { color: var(--ink); }
+  /* --mm = 1 mm of film in px (set by the script); frame height = 24 mm. Without JS the strip just scrolls sideways. */
+  .strip-viewport { --mm: 16px; --band: calc(var(--mm) * 5.5); position: relative; overflow-x: auto; touch-action: pan-y; padding-block: clamp(8px, 3vh, 40px); }
+  .strip-viewport.js { overflow: hidden; cursor: grab; user-select: none; -webkit-user-select: none; }
+  .strip-viewport.dragging { cursor: grabbing; }
+  .strip {
+    position: relative; display: flex; align-items: center; gap: calc(var(--mm) * 2); padding: var(--band) calc(var(--mm) * 3); width: max-content; will-change: transform;
+    background: linear-gradient(180deg, rgba(170,172,167,0.92) 0%, rgba(143,145,140,0.88) 4.5%, rgba(131,133,127,0.86) 30%, rgba(141,143,138,0.87) 56%, rgba(141,143,138,0.87) 64%, rgba(137,139,134,0.87) 72%, rgba(133,135,130,0.87) 95.5%, rgba(167,169,164,0.92) 100%);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  }
+  .strip::before, .strip::after {
+    content: ""; position: absolute; left: 0; right: 0; height: calc(var(--mm) * 2.79);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4.75 2.79' preserveAspectRatio='none'%3E%3Crect x='1.385' width='1.98' height='2.79' rx='0.42' fill='%23ecebe6'/%3E%3C/svg%3E");
+    background-size: calc(var(--mm) * 4.75) 100%; background-repeat: repeat-x;
+  }
+  .strip::before { top: calc(var(--mm) * 2); }
+  .strip::after { bottom: calc(var(--mm) * 2); }
+  .slot { position: relative; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
+  .slot img { height: min(50vh, 420px); width: auto; object-fit: cover; pointer-events: none; border-radius: calc(var(--mm) * 0.7); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 0 calc(var(--mm) * 0.5) calc(var(--mm) * 0.25) rgba(29, 30, 28, 0.55); }
+  .slot .num { position: absolute; top: calc(-1 * var(--band)); left: var(--mm); height: calc(var(--mm) * 2); display: flex; align-items: center; gap: 0.8em; font: 700 max(9px, calc(var(--mm) * 1.1))/1 var(--sans); letter-spacing: 0.1em; color: var(--film-ink); white-space: nowrap; pointer-events: none; }
+  .roll-meta { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px 30px; align-items: center; padding-top: clamp(14px, 3vh, 30px); }
+  .roll-title { font: 400 clamp(2rem, 4.6vw, 4rem)/1 var(--display); letter-spacing: var(--d-track); margin: 0; }
+  .roll-nav { display: flex; gap: 10px; }
+  .roll-nav button { width: 52px; height: 52px; border-radius: 50%; border: 1px solid var(--line); font-size: 1.2rem; }
+  .roll-nav button:hover { border-color: var(--ink); }
+  .roll-nav button:disabled { opacity: 0.3; cursor: default; }
+</style>
+
+<script>
+  const viewport = document.getElementById("viewport") as HTMLElement;
+  const strip = document.getElementById("strip") as HTMLElement;
+  const slots = Array.from(strip.querySelectorAll<HTMLElement>(".slot"));
+  const prevBtn = document.getElementById("prevBtn") as HTMLButtonElement;
+  const nextBtn = document.getElementById("nextBtn") as HTMLButtonElement;
+  const live = document.getElementById("rollLive") as HTMLElement;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let centers: number[] = [];
+  let pos = 0, target = 0, idx = 0, raf = 0;
+  let drag: { x: number; start: number; lastX: number; lastT: number; v: number; moved: boolean; id: number } | null = null;
+
+  const fromHash = parseInt(location.hash.slice(1), 10);
+  if (fromHash >= 1 && fromHash <= slots.length) idx = fromHash - 1;
+  viewport.classList.add("js");
+
+  function layout() {
+    const vw = viewport.clientWidth;
+    const H = Math.min(innerHeight * 0.5, 600, vw * 0.84 * 0.75);
+    viewport.style.setProperty("--mm", (H / 24).toFixed(3) + "px");
+    for (const s of slots) {
+      const w = H * Number(s.dataset.ar);
+      s.style.width = w + "px"; s.style.height = H + "px";
+      const im = s.querySelector("img")!;
+      im.style.width = w + "px"; im.style.height = H + "px";
+    }
+    centers = slots.map((s) => s.offsetLeft + s.offsetWidth / 2);
+    pos = target = centers[idx] ?? 0;
+    render();
+  }
+  function fracIndex(p: number) {
+    const c = centers, n = c.length - 1;
+    if (n < 1) return 0;
+    if (p <= c[0]) return (p - c[0]) / (c[1] - c[0]);
+    for (let i = 0; i < n; i++) if (p <= c[i + 1]) return i + (p - c[i]) / (c[i + 1] - c[i]);
+    return n + (p - c[n]) / (c[n] - c[n - 1]);
+  }
+  function render() {
+    strip.style.transform = `translate3d(${viewport.clientWidth / 2 - pos}px,0,0)`;
+    const p = fracIndex(pos);
+    slots.forEach((s, i) => {
+      const d = Math.abs(i - p);
+      const o = d <= 1 ? 1 - 0.65 * d : d <= 2 ? 0.35 - 0.23 * (d - 1) : Math.max(0.03, 0.12 - 0.09 * (d - 2));
+      (s.querySelector("img") as HTMLElement).style.opacity = o.toFixed(3);
+    });
+  }
+  function tick() {
+    const diff = target - pos;
+    if (Math.abs(diff) < 0.4) { pos = target; render(); raf = 0; return; }
+    pos += diff * 0.13; render(); raf = requestAnimationFrame(tick);
+  }
+  function animate() { if (reduce) { pos = target; render(); return; } if (!raf) raf = requestAnimationFrame(tick); }
+  function nearest(p: number) { let best = 0, bd = Infinity; centers.forEach((c, i) => { const d = Math.abs(c - p); if (d < bd) { bd = d; best = i; } }); return best; }
+  function go(i: number, instant = false) {
+    idx = Math.max(0, Math.min(slots.length - 1, i));
+    target = centers[idx];
+    if (instant) { pos = target; render(); } else animate();
+    prevBtn.disabled = idx === 0; nextBtn.disabled = idx === slots.length - 1;
+    live.textContent = `Frame ${idx + 1} of ${slots.length}`;
+    try { history.replaceState(null, "", `#${idx + 1}`); } catch {}
+  }
+
+  viewport.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    drag = { x: e.clientX, start: pos, lastX: e.clientX, lastT: performance.now(), v: 0, moved: false, id: e.pointerId };
+    cancelAnimationFrame(raf); raf = 0;
+  });
+  viewport.addEventListener("pointermove", (e) => {
+    if (!drag || drag.id !== e.pointerId) return;
+    const dx = e.clientX - drag.x;
+    if (!drag.moved && Math.abs(dx) > 6) { drag.moved = true; viewport.classList.add("dragging"); try { viewport.setPointerCapture(e.pointerId); } catch {} }
+    if (!drag.moved) return;
+    let raw = drag.start - dx;
+    const min = centers[0], max = centers[centers.length - 1];
+    if (raw < min) raw = min - (min - raw) * 0.35;
+    if (raw > max) raw = max + (raw - max) * 0.35;
+    pos = raw; render();
+    const now = performance.now(), dt = Math.max(1, now - drag.lastT);
+    drag.v = 0.8 * ((e.clientX - drag.lastX) / dt) + 0.2 * drag.v; drag.lastX = e.clientX; drag.lastT = now;
+  });
+  const endDrag = (e: PointerEvent) => {
+    if (!drag || drag.id !== e.pointerId) return;
+    const d = drag; drag = null; viewport.classList.remove("dragging");
+    if (!d.moved) { const slot = (e.target as HTMLElement).closest?.(".slot") as HTMLElement | null; if (slot) go(Number(slot.dataset.i)); return; }
+    go(nearest(pos - d.v * 220));
+  };
+  viewport.addEventListener("pointerup", endDrag);
+  viewport.addEventListener("pointercancel", (e) => { if (drag && drag.id === e.pointerId) { drag = null; viewport.classList.remove("dragging"); go(nearest(pos)); } });
+  let wheelT = 0;
+  viewport.addEventListener("wheel", (e) => {
+    const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.shiftKey ? e.deltaY : 0;
+    if (!dx) return;
+    e.preventDefault(); cancelAnimationFrame(raf); raf = 0;
+    pos = Math.max(centers[0] - 60, Math.min(centers[centers.length - 1] + 60, pos + dx)); render();
+    clearTimeout(wheelT); wheelT = window.setTimeout(() => go(nearest(pos)), 110);
+  }, { passive: false });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight") { go(idx + 1); e.preventDefault(); }
+    else if (e.key === "ArrowLeft") { go(idx - 1); e.preventDefault(); }
+    else if (e.key === "Home") { go(0); e.preventDefault(); }
+    else if (e.key === "End") { go(slots.length - 1); e.preventDefault(); }
+  });
+  prevBtn.addEventListener("click", () => go(idx - 1));
+  nextBtn.addEventListener("click", () => go(idx + 1));
+  addEventListener("resize", () => { layout(); go(idx, true); });
+
+  layout();
+  go(idx, true);
+</script>

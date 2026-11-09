@@ -13,7 +13,7 @@
 | axe-core | 0 violations on every page, paper and dark |
 | Keyboard-only walkthrough | everything reachable; film roll, picks shelves, mobile menu |
 | VoiceOver (iOS Safari) | film roll announces frames; picks items have names |
-| JS disabled | every page readable; film roll falls back to the contact sheet |
+| JS disabled | every page readable; film roll falls back to a simple list of frames |
 
 ## SEO / sharing
 - Unique `title`/`description` per page (from copy YAML), canonical URLs, sitemap, `robots.txt`.
@@ -23,7 +23,7 @@
 - Confirm there are zero `TODO(copy)` strings left (the build check from T03). If any remain, list them for Abhiman instead of inventing copy.
 
 ## Security checks (from `04-SECURITY.md` §3)
-- CSP meta present on every page and nothing in the console violates it; no inline scripts except the hashed theme script.
+- CSP meta present on every page and nothing in the console violates it; no inline scripts.
 - No runtime requests to third parties except analytics (and YouTube only after a click). Check the Network panel.
 - No GPS/location EXIF in any file in `dist/` (run `exiftool -gps:all -r dist` or equivalent).
 - `security.txt` present; 404 doesn't echo the URL.

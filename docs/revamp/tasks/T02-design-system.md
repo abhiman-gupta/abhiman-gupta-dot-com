@@ -14,7 +14,7 @@ Encode `01-DESIGN-SYSTEM.md` exactly in CSS, plus a dev-only style guide so late
    `public/fonts/`, with their OFL license files. No italic files. No runtime requests to Google Fonts.
 2. `tokens.css`: every token in `01-DESIGN-SYSTEM.md` (monochrome site surfaces in light + dark, darkroom, `--glow`, film,
    type scale, space, grid, motion). Add a `.darkroom` class that remaps site tokens to darkroom values (the drying line and
-   film roll use it), and dark mode via `[data-theme="dark"]` / `prefers-color-scheme`. No accent color exists; `--edge` equals ink.
+   film roll use it). **No dark mode in Phase 1**: the site is always Bone. No accent color exists; `--edge` equals ink.
 3. `global.css`: `@font-face` (`font-display: swap`), modern reset, base type, links (underline draws in
    ink on hover), focus-visible ring, `.wrap` / grid helpers, `.sr-only`, `.skip-link`, `::selection`,
    global reduced-motion guard.

@@ -11,22 +11,26 @@ glow on hovered film.** No accent color.
 
 ### Site surfaces
 
-| Token | Light | Dark | Use |
-| --- | --- | --- | --- |
-| `--paper` | `#f5f5f3` | `#0b0b0b` | page background |
-| `--paper-2` | `#eaeae7` | `#161616` | quiet panels (teasers, shelves) |
-| `--mat` | `#ffffff` | `#1d1d1d` | print mats around images |
-| `--ink` | `#0f0f0f` | `#efefed` | text |
-| `--muted` | `#6a6a68` | `#959592` | captions, metadata, inactive nav |
-| `--line` | `#d7d7d4` | `#2a2a2a` | hairlines |
-| `--edge` | `#0f0f0f` | `#efefed` | active nav dot, focus ring, link underline (same as ink) |
-| `--shadow` | `rgba(0,0,0,0.22)` | `rgba(0,0,0,0.6)` | print shadows |
+**Chosen 2026-11-09: Bone** (first Paper, then switched to Bone). Abhiman found black too dark and picked from six neutral options in the mockup.
+The site pages are always Bone; **no automatic dark mode in Phase 1** (the photography darkroom pages stay dark on purpose).
 
-Dark mode follows `prefers-color-scheme` and a toggle (`data-theme`). Contrast ≥ 4.5:1 for body text in both.
+| Token | Value | Use |
+| --- | --- | --- |
+| `--paper` | `#ecebe6` | page background (Bone) |
+| `--paper-2` | `#e1e0da` | quiet panels (teasers, shelves) |
+| `--mat` | `#f8f7f3` | print mats around images |
+| `--ink` | `#121211` | text |
+| `--muted` | `#64635e` | captions, metadata, inactive nav, the grey word in two-tone headlines |
+| `--line` | `#cfcdc6` | hairlines |
+| `--edge` | `#121211` | focus ring, link underline (same as ink) |
+| `--shadow` | `rgba(0,0,0,0.18)` | print shadows |
 
-### Darkroom (always dark, both themes)
+Contrast ≥ 4.5:1 for body text. Rejected options, kept for reference: Paper `#f5f5f3`, Fog `#dfdfdc`, Concrete `#bdbdb9`,
+Graphite `#2b2b2a`, Black `#0b0b0b` (full token sets are in the mockup's CSS). A dark-mode toggle can come later if wanted.
 
-Used for the drying line and the film roll viewer (`<body class="darkroom">` remaps the site tokens to these).
+### Darkroom (always dark)
+
+**Not used in Phase 1.** Since 2026-11-09 every page, including the drying line and the film roll viewer, uses the Bone background. Kept for reference only.
 
 | Token | Value | Use |
 | --- | --- | --- |
@@ -44,7 +48,7 @@ Used for the drying line and the film roll viewer (`<body class="darkroom">` rem
 | `--film-ink` | `rgba(22, 22, 20, 0.72)` | edge print (frame numbers, "SAFETY FILM 400") |
 | `--film-edge` | inset hairline + faint inner glow (see mockup) | the film's cut edges catching light |
 
-The film base also gets a subtle highlight gradient across its width (lighter at the edges and in one
+On the Bone drying line the base is a **light grey** (gradient `#aaaca7` → `#83857f` → `#a7a9a4` at ~0.85–0.9 opacity; lightened twice on 2026-11-09) with **dark** edge print (`rgba(28,28,26,0.7)`). The film roll viewer uses **the same film colors** (gradient across the strip height) and Bone-colored perforation holes; labels use `--ink`. Hover outline is crisp amber, no blur. The film base also gets a subtle highlight gradient across its width (lighter at the edges and in one
 streak) so it reads as glossy, slightly cupped film.
 
 ## Real 35mm geometry (binding for anything drawn as film)
@@ -58,12 +62,16 @@ Draw film in millimetre units (SVG `viewBox` in mm, or CSS with `--mm` = 1 mm in
 | Gap between frames | 2 mm |
 | Perforations (KS) | 2.8 mm across × 1.98 mm along, 0.42 mm radius, every **4.75 mm**, **cut through** the base (real holes, not painted) |
 | Perforation position | 1.9 mm in from each edge |
-| Edge print | in the 1.9 mm rebate outside the perforations: frame numbers on one side (`12`, `▸ 12A`), `SAFETY FILM` / `400 ▸ 12` on the other |
+| Edge print | in the 1.9 mm rebate outside the perforations: frame numbers on one side only (`12`, `▸ 12A`). **No barcode, no "SAFETY FILM" or ISO text** |
 
 - On the **drying line** every frame is the same 24 × 32 mm slot, so landscape photos hang **sideways** (rotated 90°),
   exactly like real negatives. Portraits hang upright.
 - In the **film roll viewer** photos are shown upright for viewing: landscape slots 32 mm long, portrait slots 18 mm,
   frame height = 24 mm of film.
+- **Realism details, kept clean** (match the mockup's drying line): an even grey base with only a subtle highlight at the cut edges, gentle top-to-bottom light falloff on the film only (never over
+  the photos), **no gloss or light streak**, a soft blurred dense **gate edge** (~0.6 mm) around every frame, thin highlights on perforation
+  cut edges and the film's outer edges, and a soft low shadow on the Bone background. **No dust, scratches or barcode** (Abhiman
+  found the imperfections made it look worse).
 - **Never print real film brand names.** "SAFETY FILM" and an ISO number are generic.
 
 ## Photographs
@@ -126,7 +134,7 @@ Fluid scale (`clamp()`):
 | `--dur-med` | 400–500ms | glows, reveals |
 | `--dur-slow` | 900ms+ | hero crossfades |
 
-- **Drying-line sway:** each strip pendulums from its clip: rotate ±1.1–2.1°, twist (rotateY) ±5–11°, 5–7.6s per swing,
+- **Drying-line sway:** each strip pendulums from its clip: rotate ±1.1–2.1° (2D only: **no rotateY/perspective**, which makes a paused strip render blurry), 5–7.6s per swing,
   random phase, `ease-in-out` alternate. Hover/focus pauses it in place (`animation-play-state: paused`).
 - **Film roll:** drag with velocity, glide, then snap to the nearest frame; opacity of neighbors interpolates continuously.
 - Text: headlines fade up line by line; body text just fades. No letter-by-letter effects.
@@ -135,7 +143,7 @@ Fluid scale (`clamp()`):
 
 ## Components (owned by T03 unless noted)
 
-`SiteHeader`, `SiteFooter`, `Grain`, `Reveal`, `Print`, `EdgeLabel`, `LinkArrow`, `ThemeToggle`.
+`SiteHeader`, `SiteFooter`, `Grain`, `Reveal`, `Print`, `EdgeLabel`, `LinkArrow`.
 Film parts (`FilmStrip` SVG, clips, rod) belong to T04; the roll viewer to T05; picks layouts to T08.
 
 ## Voice of the UI (micro-copy tone, not final copy)

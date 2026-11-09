@@ -11,11 +11,10 @@ Small cross-cutting edits anywhere, each listed in the handoff with its reason. 
 2. **Smooth scroll:** Lenis on desktop fine-pointer only, off under reduced motion; re-init on `astro:page-load`, destroy on `astro:before-swap`.
    Must not fight the film roll's horizontal drag or the picks shelves.
 3. **Splice transitions:** tune the fade-through-black between pages, especially drying line → film roll, until it feels like one continuous cut.
-4. **Drying line:** tune sway tempo/twist so the strips feel like real film in moving air (never synchronized, never seasick), and the hover freeze + amber glow so it feels instant.
+4. **Drying line:** tune sway tempo (2D only, no twist) so the strips feel like real film in moving air (never synchronized, never seasick), and the hover freeze + amber glow so it feels instant.
 5. **Hover bloom:** the white bloom appears consistently on every interactive image and never on text. No other color anywhere except photos and the film glow.
 6. **Hero:** tune crossfade timing and drift so it feels like breathing, not a slideshow.
-7. **Micro-interactions:** nav underline, buttons, the theme toggle (an aperture closing/opening), copy-email feedback.
-8. **One small delight** (optional, keep it tasteful): e.g. hovering the footer's local time shows a tiny "golden hour in Tucson: 5:41 pm" computed from the date.
+7. **Micro-interactions:** nav underline, buttons, copy-email feedback.
 
 ## Acceptance
 - [ ] 60fps scroll on desktop; no layout thrash.

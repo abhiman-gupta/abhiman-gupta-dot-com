@@ -20,16 +20,25 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
       - name: Configure Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
-      - name: Build public website
+      - name: Install dependencies
+        run: npm ci
+      - name: Build site
         env:
-          GA_MEASUREMENT_ID: ${{ vars.GA_MEASUREMENT_ID }}
-        run: npm run build:pages
+          PUBLIC_GA_MEASUREMENT_ID: ${{ vars.GA_MEASUREMENT_ID }}
+        run: npm run build
       - name: Upload website
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
-          path: _site
+          path: dist
 
   deploy:
     environment:

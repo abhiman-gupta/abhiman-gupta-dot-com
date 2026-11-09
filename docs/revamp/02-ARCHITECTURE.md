@@ -60,6 +60,20 @@ visibly in dev and fails the production build (T03 adds the check).
 └─ docs/revamp/
 ```
 
+## Photo file names (rule)
+
+- **Source files (what Abhiman drops in the folder): any name is fine**, straight from Lightroom or the camera.
+  Display order comes from an explicit `order` list in `collection.json` if present, otherwise natural sort of the file names.
+- **Published files are renamed at build time to a content hash**, never the original name:
+  `/photos/<collection-slug>/<first 10 hex chars of SHA-256 of the processed image>-<width>.<avif|webp|jpg>`,
+  e.g. `/photos/albuquerque/3f9a1c07be-1200.avif`.
+  - *Why a hash and not a random ID:* the same photo always gets the same name, so browser/CDN caching and shared links keep working
+    across rebuilds; random names would change every build.
+  - *Why not the original name:* names like `DSC_4821.jpg` or `IMG_20251012_064455.jpg` leak the camera model, shoot dates and times,
+    and how many photos exist between published ones. Hash names reveal nothing and can't be guessed.
+- Metadata is stripped from every published file (no GPS/location; keep `Artist`/`Copyright`), per `04-SECURITY.md`.
+- Frame links use the frame number (`/photography/albuquerque/#2`), not the file name, so renaming never breaks them.
+
 ## Photography data API (contract between T04, T05, T06)
 
 T04 implements; T05 and T06 consume it and may mock it until T04 lands.
@@ -98,6 +112,7 @@ export function getFeaturedPhotos(limit?: number): Promise<(Photo & { collection
   "category": "travel",
   "description": "optional one-liner",
   "order": 1,
+  "order": ["P1048833.jpg", "P1048790.jpg"],
   "featured": ["004.jpg", "011.jpg"],
   "captions": { "004.jpg": "Half Dome before the storm" }
 }
