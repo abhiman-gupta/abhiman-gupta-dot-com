@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "node scripts/check-photo-metadata.mjs && astro build",
+    "check-photos": "node scripts/check-photo-metadata.mjs",
+    "strip-photos": "node scripts/check-photo-metadata.mjs --strip",
     "preview": "astro preview"
   },
   "dependencies": {

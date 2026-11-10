@@ -10,7 +10,9 @@ Clicking a photo opens it full screen. Adding photos means adding files; no code
 2. Export as sRGB JPEG, quality 80–90, long edge about 2000–2400 px. Turn off location metadata in the export settings.
 3. Name the files in viewing order: `01.jpg`, `02.jpg`, `03.jpg`, … (numbers sort naturally, so `10.jpg` comes after `09.jpg`).
 4. Put them in the location's folder, e.g. `photography/locations/tucson/`.
-5. Commit and push to `main`. The site rebuilds and deploys by itself.
+5. Run `npm run strip-photos`. It removes all embedded metadata (camera serial number, dates, GPS) from the files without
+   touching the picture. The site publishes the original files too, so the build refuses any photo that still has metadata.
+6. Commit and push to `main`. The site rebuilds and deploys by itself.
 
 A location with no photos yet still gets a marker (white with a red ring) and says "No photos yet".
 

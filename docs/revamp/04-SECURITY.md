@@ -89,7 +89,9 @@ Ranked by how much harm each prevents. None of these depend on the revamp.
 - External links: `rel="noopener noreferrer"` with `target="_blank"`.
 
 **Photos and personal info.**
-- Strip **GPS and all location EXIF** at build time. Keep camera settings, and add `Artist`/`Copyright` = "Abhiman Gupta".
+- Source photos must carry **no embedded metadata** (EXIF, XMP, IPTC). Astro publishes the original files next to the resized
+  copies, so nothing is stripped at build time. `scripts/check-photo-metadata.mjs` runs before every build and fails it if a
+  photo in `photography/locations/` or `src/assets/images/` has metadata; `npm run strip-photos` removes it from JPEGs.
 - Publish web sizes only (long edge ≤ 2400 px); originals stay off the repo.
 - Don't publish home or exact routine locations in captions; city-level ("Tucson") is fine.
 - Right-click blocking and "disable save" scripts are pointless; a visible © line is enough.
