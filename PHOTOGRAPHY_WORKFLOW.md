@@ -1,7 +1,7 @@
 # Photography workflow
 
 The Photography page is a globe. Each **location** is one folder and shows up as a red marker; clicking it lists that place's photos.
-Adding photos means adding files; no code changes.
+Clicking a photo opens it full screen. Adding photos means adding files; no code changes.
 
 ## Add photos to a location
 
@@ -15,8 +15,7 @@ A location with no photos yet still gets a marker (white with a red ring) and sa
 
 ## Add a new location
 
-1. Make a folder with a short, lowercase, hyphenated name: `photography/locations/tashkent/`. That name becomes the photo
-   viewer's address (`abhimangupta.com/photography/tashkent/`).
+1. Make a folder with a short, lowercase, hyphenated name: `photography/locations/tashkent/`.
 2. Add a `location.json`. `lat`/`lon` place the marker (right-click a spot in Google Maps to copy them); `region` is optional.
 
    ```json

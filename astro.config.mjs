@@ -16,5 +16,8 @@ export default defineConfig({
     "/recommendations/": "/cool-stuff/",
     "/notes/": "/",
     "/contact/": "/#contact",
+    // Old per-album film-roll pages; photos now open from the globe.
+    "/photography/tucson-light/": "/photography/",
+    "/photography/albuquerque-balloon-festival/": "/photography/",
   },
 });

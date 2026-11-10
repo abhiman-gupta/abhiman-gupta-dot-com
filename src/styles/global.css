@@ -1,5 +1,5 @@
 /* abhimangupta.com: monochrome, Bone background, DM Mono + DM Sans, no italics.
-   Tokens follow docs/revamp/01-DESIGN-SYSTEM.md. The only UI color is the amber glow on hovered film. */
+   Tokens follow docs/revamp/01-DESIGN-SYSTEM.md. The UI stays monochrome; the photos and the photography globe carry the colour. */
 :root {
   --paper: #ecebe6;
   --paper-2: #e1e0da;
@@ -8,8 +8,6 @@
   --muted: #64635e;
   --line: #cfcdc6;
   --shadow: rgba(0, 0, 0, 0.18);
-  --glow: #f2a54a;
-  --film-ink: rgba(28, 28, 26, 0.7);
   --display: "DM Mono", ui-monospace, Menlo, monospace;
   --sans: "DM Sans Variable", "DM Sans", "Helvetica Neue", Arial, sans-serif;
   --d-track: -0.07em;

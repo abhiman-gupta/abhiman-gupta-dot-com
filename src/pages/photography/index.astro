@@ -3,10 +3,14 @@
  * Photography index: a turning globe with a red marker for each location in photography/locations/.
  * The globe is a WebGL sphere textured with Natural Earth II (public domain, public/textures/earth.jpg);
  * borders and markers are an SVG layer drawn with the same d3 orthographic projection on top.
+ * Picking a place opens a drawer with its photos; side banners point to places on the far side of the globe.
  */
 import { getImage } from "astro:assets";
 import Base from "../../layouts/Base.astro";
 import { getLocations, placeLine } from "../../lib/photos";
+
+/** The location the globe starts on and the Home button returns to. */
+const HOME = "tucson";
 
 const locations = await Promise.all(
   getLocations().map(async (l) => ({
@@ -15,7 +19,8 @@ const locations = await Promise.all(
     thumbs: await Promise.all(
       l.photos.map(async (p) => {
         const img = await getImage({ src: p.image, widths: [400, 800], format: "webp", quality: 80 });
-        return { src: img.src, srcset: img.srcSet.attribute, portrait: p.orientation === "portrait" };
+        const full = await getImage({ src: p.image, widths: [1000, 1600, 2400], format: "webp", quality: 85 });
+        return { src: img.src, srcset: img.srcSet.attribute, full: full.src, fullSrcset: full.srcSet.attribute, portrait: p.orientation === "portrait" };
       })
     ),
   }))
@@ -24,15 +29,15 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
 const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ? "photo" : "photos"}`);
 ---
 <Base title="Photography · Abhiman Gupta" description="Photography by Abhiman Gupta, by place." current="photography">
-  <header class="page-head wrap globe-head">
-    <h1 class="page-title">Photo<em>graphy</em></h1>
-  </header>
+  <section class="atlas" id="atlas">
+    <header class="page-head wrap globe-head">
+      <h1 class="page-title">Photo<em>graphy</em></h1>
+    </header>
 
-  <section class="atlas wrap">
     <div class="globe-stage" id="stage">
-      <div class="globe-box">
+      <div class="globe-box" id="box">
         <canvas id="earth" class="earth" aria-hidden="true"></canvas>
-        <svg id="globe" class="globe" viewBox="0 0 800 800" role="img" aria-label="Globe. Drag to turn it; red markers show where the photographs were taken." data-markers={markers}>
+        <svg id="globe" class="globe" viewBox="0 0 800 800" role="img" aria-label="Globe. Drag to turn it; red markers show where the photographs were taken." data-markers={markers} data-home={HOME}>
           <defs><clipPath id="lens"><circle cx="400" cy="400" r="361" /></clipPath></defs>
           <g clip-path="url(#lens)">
             <path class="fallback-sphere" id="fallbackSphere" />
@@ -43,50 +48,65 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
             <g id="pins"></g>
           </g>
         </svg>
-      </div>
-      <div class="tip" id="tip" hidden></div>
-      <div class="zoom">
-        <button id="zoomIn" aria-label="Zoom in">+</button>
-        <button id="zoomOut" aria-label="Zoom out">−</button>
-      </div>
-      <p class="label hint">Drag to turn · pick a red marker</p>
-    </div>
-
-    <aside class="panel" aria-live="polite">
-      <div id="overview">
-        <p class="label">Places</p>
-        <ul class="place-list">
-          {locations.map((l) => (
-            <li>
-              <button class="place-btn" data-key={l.slug}>
-                <span class="pname">{l.name}</span>
-                <span class="label">{l.line} · {photoCount(l.photos.length)}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {locations.map((l) => (
-        <div class="place-detail" data-place={l.slug} hidden>
-          <button class="back label" data-back>← All places</button>
-          <h2 class="place-title">{l.name}</h2>
-          <p class="label">{l.line}</p>
-          {l.thumbs.length > 0 ? (
-            <div class="thumbs">
-              {l.thumbs.map((t, i) => (
-                <a href={`/photography/${l.slug}/#${i + 1}`} class={t.portrait ? "thumb portrait" : "thumb"}>
-                  <img src={t.src} srcset={t.srcset} sizes="(max-width: 900px) 45vw, 220px" alt={`${l.name}, photo ${i + 1}`} loading="lazy" />
-                </a>
-              ))}
-            </div>
-          ) : (
-            <p class="empty">{photoCount(0)}</p>
-          )}
+        <div class="controls">
+          <button id="home" class="home-btn" aria-label="Back to Tucson" title="Back to Tucson"><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M3.5 11 12 4l8.5 7M6 9.2V20h4.5v-5.5h3V20H18V9.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button id="zoomIn" aria-label="Zoom in">+</button>
+          <button id="zoomOut" aria-label="Zoom out">−</button>
         </div>
-      ))}
-    </aside>
+      </div>
+      <button class="nudge left" id="nudgeL" data-side="left" tabindex="-1" aria-hidden="true"><span class="arrow" aria-hidden="true">←</span><span class="ntext"></span></button>
+      <button class="nudge right" id="nudgeR" data-side="right" tabindex="-1" aria-hidden="true"><span class="ntext"></span><span class="arrow" aria-hidden="true">→</span></button>
+      <div class="tip" id="tip" hidden></div>
+    </div>
+    <p class="label hint">Drag to turn</p>
   </section>
+
+  <section class="places wrap" aria-label="Places">
+    <p class="label">Places</p>
+    <ul class="place-list">
+      {locations.map((l) => (
+        <li>
+          <button class="place-btn" data-key={l.slug}>
+            <span class="pname">{l.name}</span>
+            <span class="label">{l.line} · {photoCount(l.photos.length)}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <aside class="drawer" id="drawer" aria-label="Photos from this place" inert>
+    <button class="close label" id="drawerClose">Close ✕</button>
+    {locations.map((l) => (
+      <div class="place-detail" data-place={l.slug} hidden>
+        <h2 class="place-title" tabindex="-1">{l.name}</h2>
+        <p class="label">{l.line}</p>
+        {l.thumbs.length > 0 ? (
+          <div class="thumbs">
+            {l.thumbs.map((t, i) => (
+              <a href={t.full} class={t.portrait ? "thumb portrait" : "thumb"} data-full={t.full} data-full-srcset={t.fullSrcset} data-i={i}>
+                <img src={t.src} srcset={t.srcset} sizes="(max-width: 700px) 45vw, 190px" alt={`${l.name}, photo ${i + 1}`} loading="lazy" />
+              </a>
+            ))}
+          </div>
+        ) : (
+          <p class="empty">{photoCount(0)}</p>
+        )}
+      </div>
+    ))}
+  </aside>
+
+  <div class="viewer" id="viewer" role="dialog" aria-modal="true" aria-label="Photo viewer" hidden>
+    <div class="viewer-bar">
+      <p class="viewer-title"><span id="viewerPlace"></span> <span class="viewer-count" id="viewerCount"></span></p>
+      <button class="viewer-close" id="viewerClose" aria-label="Close photo">Close ✕</button>
+    </div>
+    <div class="viewer-stage" id="viewerStage">
+      <img id="viewerImg" alt="" sizes="100vw" draggable="false" />
+    </div>
+    <button class="viewer-nav prev" id="viewerPrev" aria-label="Previous photo">←</button>
+    <button class="viewer-nav next" id="viewerNext" aria-label="Next photo">→</button>
+  </div>
 </Base>
 
 <script>
@@ -100,13 +120,16 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
   const NS = "http://www.w3.org/2000/svg";
   const VB = 800;
   const R = 360;
+  const LENS = R + 1;
   const svg = document.getElementById("globe") as unknown as SVGSVGElement;
   const canvas = document.getElementById("earth") as HTMLCanvasElement;
   const stage = document.getElementById("stage")!;
+  const atlas = document.getElementById("atlas")!;
   const tip = document.getElementById("tip")!;
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const markers: Marker[] = JSON.parse(svg.dataset.markers ?? "[]");
   const byKey = new Map(markers.map((m) => [m.key, m]));
+  const home = byKey.get(svg.dataset.home ?? "") ?? markers[0];
 
   const wt = world as unknown as Topology<{ countries: GeometryCollection; land: GeometryCollection }>;
   const ut = us as unknown as Topology<{ states: GeometryCollection }>;
@@ -118,6 +141,7 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
   const path = geoPath(projection);
   const graticule = geoGraticule10();
   const el = (id: string) => document.getElementById(id)!;
+  const wrap180 = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
 
   const pins = markers.map((m) => {
     const g = document.createElementNS(NS, "g");
@@ -125,7 +149,7 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
     g.dataset.key = m.key;
     g.innerHTML = `<circle class="pulse" r="10"/><circle class="dot" r="5.5"/>`;
     el("pins").appendChild(g);
-    return { g, m, at: [m.lon, m.lat] as [number, number] };
+    return { g, m, at: [m.lon, m.lat] as [number, number], visible: false };
   });
 
   // ---------- WebGL terrain ----------
@@ -144,7 +168,7 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
       void main() {
         float px = ${VB.toFixed(1)} / size.x;                  // one device pixel in viewBox units
         vec2 d = vec2(gl_FragCoord.x, size.y - gl_FragCoord.y) * px - ${(VB / 2).toFixed(1)};
-        float lens = clamp((${(R + 0.5).toFixed(1)} - length(d)) / px, 0.0, 1.0);
+        float lens = clamp((${(LENS - 0.5).toFixed(1)} - length(d)) / px, 0.0, 1.0);
         vec2 q = vec2(d.x, -d.y) / radius;
         float r = length(q);
         float a = clamp((1.0 - r) * radius / px, 0.0, 1.0) * lens;
@@ -213,12 +237,12 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
   function sizeCanvas() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const w = Math.round(canvas.clientWidth * dpr);
-    if (canvas.width !== w) { canvas.width = w; canvas.height = w; dirty = true; }
+    if (w > 0 && canvas.width !== w) { canvas.width = w; canvas.height = w; dirty = true; }
   }
   new ResizeObserver(sizeCanvas).observe(canvas);
 
   // ---------- State & render ----------
-  let rot: [number, number] = [100, -28];
+  let rot: [number, number] = home ? [-home.lon, -home.lat] : [100, -28];
   let zoom = 1;
   let vel = 0;
   let dirty = true;
@@ -248,11 +272,50 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
     const center: [number, number] = [-rot[0], -rot[1]];
     for (const p of pins) {
       const xy = projection(p.at);
-      const visible = geoDistance(p.at, center) < Math.PI / 2 - 0.03 && !!xy;
-      p.g.classList.toggle("hidden", !visible);
+      p.visible = !!xy && geoDistance(p.at, center) < Math.PI / 2 - 0.03 && Math.hypot(xy[0] - VB / 2, xy[1] - VB / 2) < LENS - 4;
+      p.g.classList.toggle("hidden", !p.visible);
       if (xy) p.g.setAttribute("transform", `translate(${xy[0].toFixed(1)} ${xy[1].toFixed(1)})`);
     }
+    updateNudges();
     dirty = false;
+  }
+
+  // ---------- Side banners: how many places are out of view on each side ----------
+  const WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
+  const nudges = {
+    left: { btn: el("nudgeL") as HTMLButtonElement, text: el("nudgeL").querySelector(".ntext")!, key: "", targets: [] as Marker[] },
+    right: { btn: el("nudgeR") as HTMLButtonElement, text: el("nudgeR").querySelector(".ntext")!, key: "", targets: [] as Marker[] },
+  };
+  function updateNudges() {
+    const left: { m: Marker; d: number }[] = [], right: { m: Marker; d: number }[] = [];
+    for (const p of pins) {
+      if (p.visible) continue;
+      const d = wrap180(p.m.lon + rot[0]); // + means east of the view centre, i.e. round to the right
+      (d >= 0 ? right : left).push({ m: p.m, d: Math.abs(d) });
+    }
+    for (const [side, list] of [["left", left], ["right", right]] as const) {
+      const n = nudges[side];
+      const sorted = list.sort((a, b) => a.d - b.d).map((x) => x.m);
+      const key = sorted.map((m) => m.key).join(",");
+      n.targets = sorted;
+      if (key === n.key) continue;
+      n.key = key;
+      const count = sorted.length;
+      n.btn.classList.toggle("show", count > 0);
+      n.btn.tabIndex = count > 0 ? 0 : -1;
+      n.btn.setAttribute("aria-hidden", count > 0 ? "false" : "true");
+      if (count > 0) {
+        const word = WORDS[count] ?? String(count);
+        n.text.textContent = `${word} more`;
+        n.btn.setAttribute("aria-label", `Turn the globe ${side}: ${count} more ${count === 1 ? "place" : "places"} with photos that way`);
+      }
+    }
+  }
+  for (const side of ["left", "right"] as const) {
+    nudges[side].btn.addEventListener("click", () => {
+      const m = nudges[side].targets[0];
+      if (m) flyTo(m, Math.min(zoom, 1.4));
+    });
   }
 
   function setClasses() {
@@ -270,54 +333,119 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
       rot = [fly.from[0] + (fly.to[0] - fly.from[0]) * e, fly.from[1] + (fly.to[1] - fly.from[1]) * e];
       zoom = fly.from[2] + (fly.to[2] - fly.from[2]) * e;
       dirty = true;
-      if (t === 1) fly = null;
+      if (t === 1) { fly = null; lastInteract = now; }
     } else if (!dragging) {
       if (Math.abs(vel) > 0.01) { rot[0] += vel; vel *= 0.94; dirty = true; }
-      else if (!reduced && !selected && now - lastInteract > 2500) { rot[0] += 0.08; dirty = true; }
+      else if (!reduced && !selected && now - lastInteract > 4000) { rot[0] += 0.08; dirty = true; }
     }
     if (dirty) render();
     requestAnimationFrame(tick);
   }
 
-  function flyTo(m: Marker) {
-    let target = -m.lon;
-    while (target - rot[0] > 180) target -= 360;
-    while (target - rot[0] < -180) target += 360;
-    fly = { from: [rot[0], rot[1], zoom], to: [target, -m.lat, 2.4], t0: performance.now(), dur: reduced ? 1 : 1200 };
+  function flyTo(m: Marker, z: number) {
+    const target = rot[0] + wrap180(-m.lon - rot[0]);
+    fly = { from: [rot[0], rot[1], zoom], to: [target, -m.lat, z], t0: performance.now(), dur: reduced ? 1 : 1200 };
+    lastInteract = performance.now();
   }
 
-  // ---------- Panel ----------
-  const overview = el("overview");
+  // ---------- Drawer ----------
+  const drawer = el("drawer");
   const details = document.querySelectorAll<HTMLElement>(".place-detail");
   function select(key: string | null) {
     selected = key;
-    overview.hidden = !!key;
-    details.forEach((d) => (d.hidden = d.dataset.place !== key));
     const m = key ? byKey.get(key) : undefined;
-    if (m) flyTo(m);
-    else fly = { from: [rot[0], rot[1], zoom], to: [rot[0], rot[1], 1], t0: performance.now(), dur: reduced ? 1 : 700 };
+    details.forEach((d) => (d.hidden = d.dataset.place !== key));
+    drawer.classList.toggle("open", !!m);
+    atlas.classList.toggle("drawer-open", !!m);
+    if (m) { drawer.removeAttribute("inert"); drawer.querySelector<HTMLElement>(`[data-place="${m.key}"] .place-title`)?.focus({ preventScroll: true }); flyTo(m, 2.4); }
+    else { drawer.setAttribute("inert", ""); fly = { from: [rot[0], rot[1], zoom], to: [rot[0], rot[1], 1], t0: performance.now(), dur: reduced ? 1 : 700 }; }
     setClasses();
     lastInteract = performance.now();
   }
-  document.querySelectorAll<HTMLButtonElement>(".place-btn").forEach((b) => b.addEventListener("click", () => select(b.dataset.key!)));
-  document.querySelectorAll<HTMLButtonElement>("[data-back]").forEach((b) => b.addEventListener("click", () => select(null)));
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && selected) select(null); });
+  document.querySelectorAll<HTMLButtonElement>(".place-btn").forEach((b) => b.addEventListener("click", () => {
+    select(b.dataset.key!);
+    window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
+  }));
+  el("drawerClose").addEventListener("click", () => select(null));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && selected && viewer.hidden) select(null); });
 
-  // ---------- Input ----------
+  // ---------- Photo viewer ----------
+  const viewer = el("viewer");
+  const viewerImg = el("viewerImg") as HTMLImageElement;
+  let shots: HTMLAnchorElement[] = [];
+  let shot = 0;
+  let opener: HTMLElement | null = null;
+  function showShot(i: number) {
+    shot = (i + shots.length) % shots.length;
+    const a = shots[shot];
+    viewerImg.classList.add("swap");
+    const img = a.querySelector("img")!;
+    viewerImg.srcset = a.dataset.fullSrcset ?? "";
+    viewerImg.src = a.dataset.full ?? a.href;
+    viewerImg.alt = img.alt;
+    el("viewerCount").textContent = shots.length > 1 ? `${shot + 1} / ${shots.length}` : "";
+    const many = shots.length > 1;
+    el("viewerPrev").hidden = !many;
+    el("viewerNext").hidden = !many;
+  }
+  viewerImg.addEventListener("load", () => viewerImg.classList.remove("swap"));
+  function openViewer(a: HTMLAnchorElement) {
+    const detail = a.closest<HTMLElement>(".place-detail")!;
+    shots = [...detail.querySelectorAll<HTMLAnchorElement>(".thumb")];
+    el("viewerPlace").textContent = detail.querySelector(".place-title")?.textContent ?? "";
+    opener = a;
+    viewer.hidden = false;
+    document.documentElement.classList.add("viewer-open");
+    showShot(Number(a.dataset.i));
+    el("viewerClose").focus();
+  }
+  function closeViewer() {
+    viewer.hidden = true;
+    document.documentElement.classList.remove("viewer-open");
+    viewerImg.removeAttribute("src");
+    viewerImg.removeAttribute("srcset");
+    opener?.focus();
+  }
+  document.querySelectorAll<HTMLAnchorElement>(".thumb").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); openViewer(a); }));
+  el("viewerClose").addEventListener("click", closeViewer);
+  el("viewerPrev").addEventListener("click", () => showShot(shot - 1));
+  el("viewerNext").addEventListener("click", () => showShot(shot + 1));
+  document.addEventListener("keydown", (e) => {
+    if (viewer.hidden) return;
+    if (e.key === "Escape") closeViewer();
+    else if (e.key === "ArrowRight" && shots.length > 1) showShot(shot + 1);
+    else if (e.key === "ArrowLeft" && shots.length > 1) showShot(shot - 1);
+    else return;
+    e.preventDefault();
+  });
+  // Swipe left/right on touch; a tap on the dark area around the photo closes it.
+  let swipe: { x: number; y: number } | null = null;
+  const vStage = el("viewerStage");
+  vStage.addEventListener("pointerdown", (e) => { swipe = { x: e.clientX, y: e.clientY }; });
+  vStage.addEventListener("pointerup", (e) => {
+    if (!swipe) return;
+    const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+    swipe = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) && shots.length > 1) showShot(shot + (dx < 0 ? 1 : -1));
+    else if (Math.abs(dx) < 6 && Math.abs(dy) < 6 && e.target === vStage) closeViewer();
+  });
+
+  // ---------- Controls ----------
   const setZoom = (z: number) => { zoom = Math.max(0.8, Math.min(6, z)); fly = null; dirty = true; lastInteract = performance.now(); };
   el("zoomIn").addEventListener("click", () => setZoom(zoom * 1.4));
   el("zoomOut").addEventListener("click", () => setZoom(zoom / 1.4));
+  el("home").addEventListener("click", () => { if (home) flyTo(home, 1); });
   svg.addEventListener("wheel", (e) => { e.preventDefault(); setZoom(zoom * Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
 
-  let start = { moved: 0 };
+  // ---------- Drag / hover / click ----------
+  let moved = 0;
   let last = { x: 0, y: 0, t: 0 };
   const toVB = (e: PointerEvent) => {
     const r = svg.getBoundingClientRect();
     return { x: ((e.clientX - r.left) / r.width) * VB, y: ((e.clientY - r.top) / r.height) * VB, scale: VB / r.width };
   };
   svg.addEventListener("pointerdown", (e) => {
-    dragging = true; fly = null; vel = 0;
-    start = { moved: 0 };
+    dragging = true; fly = null; vel = 0; moved = 0;
     last = { x: e.clientX, y: e.clientY, t: performance.now() };
     svg.setPointerCapture(e.pointerId);
     svg.classList.add("grabbing");
@@ -325,7 +453,7 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
   svg.addEventListener("pointermove", (e) => {
     if (dragging) {
       const dx = e.clientX - last.x, dy = e.clientY - last.y;
-      start.moved += Math.abs(dx) + Math.abs(dy);
+      moved += Math.abs(dx) + Math.abs(dy);
       const k = toVB(e).scale * (0.25 / zoom);
       rot = [rot[0] + dx * k, Math.max(-80, Math.min(80, rot[1] - dy * k))];
       vel = dx * k;
@@ -342,7 +470,7 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
     svg.classList.remove("grabbing");
     lastInteract = performance.now();
     if (performance.now() - last.t > 80) vel = 0;
-    if (start.moved < 5) {
+    if (moved < 5) {
       vel = 0;
       const key = markerAt(e);
       if (key) select(key);
@@ -357,7 +485,7 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
     const { x, y, scale } = toVB(e);
     let best: string | null = null, bestD = 20 * scale;
     for (const p of pins) {
-      if (p.g.classList.contains("hidden")) continue;
+      if (!p.visible) continue;
       const xy = projection(p.at);
       if (!xy) continue;
       const d = Math.hypot(xy[0] - x, xy[1] - y);
@@ -371,8 +499,7 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
     if (key !== hovered) { hovered = key; setClasses(); }
     svg.classList.toggle("pointing", !!key);
     if (key) {
-      const m = byKey.get(key)!;
-      tip.textContent = m.name;
+      tip.textContent = byKey.get(key)!.name;
       const r = stage.getBoundingClientRect();
       tip.style.transform = `translate(${e.clientX - r.left + 14}px, ${e.clientY - r.top + 14}px)`;
       tip.hidden = false;
@@ -385,14 +512,17 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
 </script>
 
 <style>
-  .globe-head { padding-block: clamp(24px, 4vw, 56px) 8px; }
+  /* Title on top, globe fills the rest of the first screen, centred. */
+  .atlas { --headerH: 68px; display: flex; flex-direction: column; height: calc(100svh - var(--headerH)); min-height: 540px; }
+  .globe-head { width: 100%; padding-block: clamp(16px, 3vw, 40px) 0; }
   .globe-head .page-title { font-size: clamp(2.6rem, 6vw, 5.5rem); }
+  .hint { text-align: center; padding: 6px 0 clamp(14px, 2vw, 24px); }
 
-  .atlas { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: clamp(24px, 5vw, 80px); align-items: center; padding-bottom: clamp(60px, 9vw, 140px); }
-  @media (max-width: 900px) { .atlas { grid-template-columns: 1fr; } }
-
-  .globe-stage { position: relative; }
-  .globe-box { position: relative; width: min(100%, 76svh); max-width: 760px; aspect-ratio: 1; margin-inline: auto; }
+  .globe-stage {
+    position: relative; flex: 1; min-height: 0; container: stage / size;
+    display: grid; place-items: center; transition: transform 0.6s var(--ease);
+  }
+  .globe-box { position: relative; width: min(100cqw - 32px, 100cqh); aspect-ratio: 1; }
   /* Soft contact shadow under the sphere. */
   .globe-box::before { content: ""; position: absolute; left: 14%; right: 14%; bottom: -3%; height: 9%; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.22), transparent); }
   .earth, .globe { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -408,7 +538,7 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
   .globe :global(.borders) { fill: none; stroke: #3a3a2c; stroke-width: 0.6; opacity: 0.4; stroke-linejoin: round; }
   .globe :global(.state-borders) { fill: none; stroke: #3a3a2c; stroke-width: 0.45; opacity: 0.25; stroke-dasharray: 2 1.5; }
 
-  .globe { --pin: #e0362c; }
+  .atlas { --pin: #e0362c; }
   .globe :global(.pin.hidden) { display: none; }
   .globe :global(.pin .dot) { fill: var(--pin); stroke: #fff; stroke-width: 2; transform-box: fill-box; transform-origin: center; transition: transform 0.2s var(--ease); }
   .globe :global(.pin .pulse) { fill: none; stroke: var(--pin); stroke-width: 1.5; transform-box: fill-box; transform-origin: center; animation: pulse 2.4s var(--ease) infinite; }
@@ -418,25 +548,96 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
   @media (prefers-reduced-motion: reduce) { .globe :global(.pin .pulse) { animation: none; opacity: 0; } }
 
   .tip { position: absolute; left: 0; top: 0; pointer-events: none; padding: 6px 10px; background: var(--ink); color: var(--paper); font: 500 0.78rem/1.2 var(--display); white-space: nowrap; border-radius: 2px; }
-  .zoom { position: absolute; right: 0; bottom: 36px; display: grid; gap: 6px; }
-  .zoom button { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 50%; background: var(--mat); font: 400 1.1rem/1 var(--display); color: var(--ink); }
-  .zoom button:hover { border-color: var(--ink); }
-  .hint { text-align: center; margin-top: 14px; }
 
-  .panel { position: sticky; top: 96px; }
+  /* Home / + / − stacked at the globe's lower right, outside the sphere. */
+  .controls { position: absolute; left: calc(100% + 4px); bottom: 3%; display: grid; justify-items: start; gap: 6px; }
+  .controls button { min-width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 999px; background: var(--mat); font: 400 1.1rem/1 var(--display); color: var(--ink); transition: border-color 0.2s; }
+  .controls .home-btn { display: grid; place-items: center; }
+  .controls button:hover { border-color: var(--ink); }
+
+  /* Side banners. Wide screens: just outside the sphere's left/right edge. Narrow screens: under the globe. */
+  .nudge {
+    position: absolute; top: 50%; z-index: 2; display: flex; align-items: center; gap: 10px; white-space: nowrap;
+    padding: 10px 14px; border-radius: 999px; background: var(--ink); color: var(--paper);
+    font: 500 0.8rem/1.25 var(--display); letter-spacing: -0.01em; text-align: left;
+    opacity: 0; pointer-events: none; transition: opacity 0.35s, transform 0.35s var(--ease);
+    box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.45);
+  }
+  .nudge.show { opacity: 1; pointer-events: auto; }
+  .atlas.drawer-open .nudge { opacity: 0; pointer-events: none; }
+  .nudge .arrow { font-size: 1.1rem; }
+  .nudge.left { right: calc(50% + min(100cqw - 32px, 100cqh) * 0.45 + 18px); transform: translate(8px, -50%); }
+  .nudge.right { left: calc(50% + min(100cqw - 32px, 100cqh) * 0.45 + 18px); transform: translate(-8px, -50%); }
+  .nudge.show.left, .nudge.show.right { transform: translate(0, -50%); }
+  .nudge.show .arrow { animation: nudge 1.6s ease-in-out infinite; }
+  .nudge.left .arrow { --dir: -1; }
+  .nudge.right .arrow { --dir: 1; }
+  @keyframes nudge { 50% { transform: translateX(calc(var(--dir) * 4px)); } }
+  @media (prefers-reduced-motion: reduce) { .nudge.show .arrow { animation: none; } }
+  @container stage (max-aspect-ratio: 8 / 5) {
+    .globe-box { width: min(100cqw - 32px, 100cqh - 70px); }
+    .controls { left: auto; right: 0; justify-items: end; }
+    .globe-stage { place-items: start center; }
+    .nudge { top: calc(min(100cqw - 32px, 100cqh - 70px) + 26px); font-size: 0.78rem; padding: 8px 12px; }
+    .nudge.left { right: auto; left: 16px; transform: translateY(6px); }
+    .nudge.right { left: auto; right: 16px; transform: translateY(6px); }
+    .nudge.show.left, .nudge.show.right { transform: none; }
+  }
+
+  /* Places list, below the first screen. */
+  /* Phones: the stage is only as tall as the globe plus the banner row, so nothing floats in empty space. */
+  @media (max-width: 700px) {
+    .atlas { height: auto; min-height: 0; }
+    .globe-stage { flex: none; height: calc(100vw - 32px + 84px); }
+  }
+
+  .places { padding-block: clamp(32px, 5vw, 64px) clamp(60px, 9vw, 120px); max-width: 760px; }
   .place-list { list-style: none; margin: 14px 0 0; padding: 0; border-top: 1px solid var(--line); }
   .place-list li { border-bottom: 1px solid var(--line); }
   .place-btn { display: flex; width: 100%; justify-content: space-between; align-items: baseline; gap: 16px; padding: 16px 0; text-align: left; }
   .pname { font: 400 clamp(1.2rem, 2vw, 1.6rem)/1.1 var(--display); letter-spacing: var(--d-track-sm); transition: color 0.2s; }
-  .place-btn:hover .pname { color: #e0362c; }
-  .back { margin-bottom: 18px; }
-  .back:hover { color: var(--ink); }
-  .place-title { font: 400 clamp(2rem, 4vw, 3.2rem)/1 var(--display); letter-spacing: var(--d-track); margin: 0 0 6px; }
+  .place-btn:hover .pname { color: var(--pin, #e0362c); }
+
+  /* Drawer: slides in from the right; a bottom sheet on phones. The globe slides left to make room on wide screens. */
+  .drawer {
+    position: fixed; z-index: 40; top: var(--headerH, 68px); right: 0; bottom: 0; width: min(440px, 100vw);
+    padding: 28px clamp(20px, 3vw, 36px) 40px; overflow-y: auto; overscroll-behavior: contain;
+    background: var(--paper); border-left: 1px solid var(--line); box-shadow: -24px 0 48px -32px rgba(0, 0, 0, 0.35);
+    transform: translateX(100%); transition: transform 0.5s var(--ease); visibility: hidden;
+  }
+  .drawer.open { transform: none; visibility: visible; }
+  .drawer:not(.open) { transition: transform 0.5s var(--ease), visibility 0s 0.5s; }
+  @media (min-width: 1000px) { .atlas.drawer-open .globe-stage { transform: translateX(calc(-1 * min(220px, 17vw))); } }
+  @media (max-width: 700px) {
+    .drawer { top: auto; left: 0; width: auto; height: 58svh; border-left: 0; border-top: 1px solid var(--line); border-radius: 14px 14px 0 0; transform: translateY(100%); box-shadow: 0 -24px 48px -32px rgba(0, 0, 0, 0.35); }
+    .atlas.drawer-open .globe-stage { transform: translateY(-18svh); }
+  }
+  .close { display: block; margin: 0 0 18px auto; }
+  .close:hover { color: var(--ink); }
+  .place-title { font: 400 clamp(2rem, 4vw, 3rem)/1 var(--display); letter-spacing: var(--d-track); margin: 0 0 6px; outline: none; }
   .thumbs { columns: 2; column-gap: 12px; margin-top: 24px; }
   .thumb { display: block; margin-bottom: 12px; break-inside: avoid; }
   .thumb img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: var(--paper-2); transition: opacity 0.3s; }
   .thumb.portrait img { aspect-ratio: 3 / 4; }
   .thumb:hover img { opacity: 0.85; }
   .empty { margin-top: 24px; color: var(--muted); }
-  @media (max-width: 900px) { .panel { position: static; } }
+
+  /* Full-screen photo viewer: dark surround so the photo carries the colour. */
+  :global(html.viewer-open) { overflow: hidden; }
+  .viewer { position: fixed; inset: 0; z-index: 90; display: grid; grid-template-rows: auto 1fr; background: rgba(14, 14, 13, 0.97); color: #ecebe6; }
+  .viewer[hidden] { display: none; }
+  .viewer-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px max(16px, var(--gutter)); }
+  .viewer-title { margin: 0; font: 400 1.05rem/1.2 var(--display); letter-spacing: var(--d-track-sm); }
+  .viewer-count { margin-left: 10px; font: 600 0.7rem/1 var(--sans); letter-spacing: 0.14em; color: #9a9993; }
+  .viewer-close { font: 600 0.72rem/1 var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: #bdbcb6; padding: 10px 0; }
+  .viewer-close:hover { color: #fff; }
+  .viewer-stage { min-height: 0; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; padding: 0 max(16px, var(--gutter)) max(16px, 3vh); touch-action: pan-y; }
+  .viewer-stage img { max-width: min(100%, 1800px); max-height: 100%; width: auto; height: auto; object-fit: contain; user-select: none; -webkit-user-select: none; transition: opacity 0.25s; }
+  .viewer-stage img:global(.swap) { opacity: 0.25; }
+  .viewer-nav { position: absolute; top: 50%; translate: 0 -50%; width: 48px; height: 48px; border-radius: 50%; border: 1px solid rgba(236, 235, 230, 0.25); color: #ecebe6; font-size: 1.2rem; background: rgba(14, 14, 13, 0.4); }
+  .viewer-nav:hover { border-color: #ecebe6; }
+  .viewer-nav.prev { left: max(12px, calc(var(--gutter) / 2)); }
+  .viewer-nav.next { right: max(12px, calc(var(--gutter) / 2)); }
+  .viewer-nav[hidden] { display: none; }
+  @media (max-width: 700px) { .viewer-nav { display: none; } }
 </style>
