@@ -11,10 +11,17 @@ interface Props {
   current?: "home" | "professional" | "photography" | "recommended";
   /** Home shows the full contact footer; every other page shows only the copyright line. */
   fullFooter?: boolean;
+  /** Social preview image in public/ (1200 × 630). Defaults to the name + portrait card from scripts/og/. */
+  image?: string;
+  imageAlt?: string;
 }
 
-const { title, description, current, fullFooter = false } = Astro.props;
+const {
+  title, description, current, fullFooter = false,
+  image = "/og.jpg", imageAlt = "Abhiman Gupta, with his portrait",
+} = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const imageUrl = new URL(image, Astro.site).href;
 const year = new Date().getFullYear();
 
 // GA4 is added only in production builds, and only with a valid measurement ID.
@@ -61,7 +68,16 @@ const nav = [
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:site_name" content="Abhiman Gupta" />
+    <meta property="og:image" content={imageUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={imageAlt} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content={imageUrl} />
+    <meta name="twitter:image:alt" content={imageAlt} />
+    <link rel="sitemap" href="/sitemap.xml" />
+    <slot name="head" />
     {gaId && <script async src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}></script>}
     {gaId && <script is:inline src="/scripts/ga-init.js" data-ga-id={gaId}></script>}
   </head>

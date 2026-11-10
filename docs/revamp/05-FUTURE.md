@@ -57,5 +57,5 @@ Designed in the mockup's Professional view; build when Abhiman decides the conte
 - Dark-mode toggle (Bone only for now).
 - Analytics decision: keep GA4 (needs a consent banner for EU/UK visitors) or switch to cookieless analytics (`04-SECURITY.md`).
 - Move `@abhimangupta.com` email from Zoho to iCloud+, then decide the public address (`04-SECURITY.md` §2 item 10).
-- `/.well-known/security.txt`, social preview (OG) images, JSON-LD `Person` on Home (`tasks/T11-perf-a11y-seo.md`).
+- Done 2026-11-10: `security.txt`, social preview card, JSON-LD `Person`, sitemap, robots.txt. Possible later: per-page preview images (e.g. a photo for Photography).
 - Smooth scrolling / motion polish only if it stays calm (`tasks/T10-motion-polish.md`).

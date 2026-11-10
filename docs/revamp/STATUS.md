@@ -27,7 +27,7 @@ Statuses: `todo` · `in progress` · `blocked` · `review` · `done` · `superse
 | T08 | Cool Stuff cabinet | T03 | in progress | | | Now "Recommended": simple link lists, one item per section so far |
 | T09 | Professional, Contact, 404, redirects, security.txt | T03 | in progress | | | Professional still "Coming soon"; no security.txt yet |
 | T10 | Motion + texture polish | T04–T06, T08, T09 | todo | | | |
-| T11 | Perf / a11y / SEO / security audit | T10 | todo | | | No OG images, JSON-LD or security.txt yet; check globe weight and keyboard access |
+| T11 | Perf / a11y / SEO / security audit | T10 | in progress | | | SEO basics done 2026-11-10 (OG card, JSON-LD, sitemap, robots, security.txt); audit still to do, incl. globe weight and keyboard access |
 | T12 | Deploy + cutover | T11 | in progress | | | Phase 1 live on `main`; `explore` needs Abhiman's OK to merge |
 
 ## Decisions log
@@ -59,6 +59,10 @@ Statuses: `todo` · `in progress` · `blocked` · `review` · `done` · `superse
 - 2026-11-10 (`explore`): Cool Stuff renamed **Recommended**; sections are favorite X posts, articles and Shark Tank pitches as
   links (no YouTube embeds, CSP `frame-src 'none'`). `/cool-stuff/` and `/recommendations/` redirect to `/recommended/`.
 - 2026-11-10 (`explore`): Footer adds an X link (`@abhiman_gupta`); email shown as `hello@abhimangupta.com` via an obfuscated link.
+- 2026-11-10: The site is about Abhiman as a person, **not photography-first**; photography shows he's creative, the PhD is part of him.
+- 2026-11-10: Social preview = name + portrait card (`public/og.jpg`, rendered from `scripts/og/card.html` by `sh scripts/og/build.sh`),
+  used on every page; pages can pass their own `image`. Home has schema.org `Person` JSON-LD (facts only). Sitemap is generated from
+  the pages; `robots.txt` and `security.txt` (contact `hello@abhimangupta.com`) are in `public/`.
 
 ## Security to-dos for Abhiman (details in `04-SECURITY.md` §2)
 
@@ -68,7 +72,12 @@ Statuses: `todo` · `in progress` · `blocked` · `review` · `done` · `superse
 - [x] Domain auto-renew enabled (reported by Abhiman 2026-11-10); GoDaddy transfer lock is on.
 - [x] DMARC monitoring record is present (`p=none`, reports to `hello@abhimangupta.com`; checked 2026-11-10).
 - [x] Apex CAA `0 issue "letsencrypt.org"` added and verified in DNS on 2026-11-10. Review it when changing hosting or adding services that need certificates for this domain.
-- [ ] OK for Claude to turn on Dependabot alerts/updates and a `main` ruleset (no force-push, no deletion)?
+- [ ] **Turn on Dependabot alerts and a `main` ruleset** (approved 2026-11-10). Claude couldn't: the local `gh` login (`abhimangupta`) has
+  read-only access to `abhiman-gupta/abhiman-gupta-dot-com`. In the repo: Settings → Advanced Security → Dependabot alerts → Enable;
+  Settings → Rules → Rulesets → New branch ruleset: target the default branch, keep "Restrict deletions" and "Block force pushes", Active.
+- [ ] `public/.well-known/security.txt` **expires 2027-11-10**: bump the `Expires` date before then.
+- [ ] Before merging the Dependabot PR that moves `upload-pages-artifact` to v4+/v5, add `include-hidden-files: true` to it in
+  `.github/workflows/pages.yml`, or `.well-known/` stops deploying.
 - [ ] Analytics: keep GA4 (needs a consent banner for EU/UK visitors) or switch to cookieless analytics?
 
 ## Later (decided, not scheduled)

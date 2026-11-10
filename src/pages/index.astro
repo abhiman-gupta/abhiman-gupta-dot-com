@@ -2,6 +2,23 @@
 import { Image } from "astro:assets";
 import Base from "../layouts/Base.astro";
 import headshot from "../assets/images/headshot.jpg";
+
+// Structured data so search engines know this page is about a person (schema.org Person). Facts only, no marketing copy.
+const site = Astro.site!.href;
+const person = {
+  "@context": "https://schema.org",
+  "@type": "Person",
+  name: "Abhiman Gupta",
+  url: site,
+  image: new URL("/og.jpg", site).href,
+  jobTitle: "PhD student, Optical Sciences",
+  affiliation: { "@type": "CollegeOrUniversity", name: "University of Arizona", url: "https://www.arizona.edu/" },
+  sameAs: [
+    "https://www.instagram.com/abhimangupta/",
+    "https://www.linkedin.com/in/abhimangupta27/",
+    "https://x.com/abhiman_gupta",
+  ],
+};
 ---
 <Base
   title="Abhiman Gupta"
@@ -9,6 +26,7 @@ import headshot from "../assets/images/headshot.jpg";
   current="home"
   fullFooter
 >
+  <script slot="head" type="application/ld+json" is:inline set:html={JSON.stringify(person)} />
   <section class="hero wrap" aria-label="Introduction">
     <div class="hero-text">
       <h1 class="hero-name"><em>Hi, I'm</em> Abhiman</h1>
