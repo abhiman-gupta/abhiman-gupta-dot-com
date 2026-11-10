@@ -73,6 +73,8 @@ Ranked by how much harm each prevents. None of these depend on the revamp.
 - Ship a **Content-Security-Policy as a `<meta http-equiv>` tag** on every page. Use Astro's built-in hash-based CSP support if the
   installed Astro version has it; otherwise write the meta tag in `BaseLayout`. Target policy:
   `default-src 'self'; script-src 'self' https://www.googletagmanager.com; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; img-src 'self' data: https://*.google-analytics.com https://www.googletagmanager.com; style-src 'self'; font-src 'self'; frame-src https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'none'; upgrade-insecure-requests`.
+  `upgrade-insecure-requests` is emitted only in GitHub Actions builds (the deployed site): Safari applies it to
+  `http://localhost`, which would break local previews.
   Drop the Google entries if analytics changes; add only what's actually used. Allow `'unsafe-inline'` for styles only if Astro's
   inlined CSS makes it unavoidable, and say so in the handoff.
 - **No inline scripts.** Move the GA bootstrap into a small file under `/scripts/` so `script-src` needs no `'unsafe-inline'`.

@@ -21,6 +21,10 @@ const year = new Date().getFullYear();
 const gaRaw = (import.meta.env.PUBLIC_GA_MEASUREMENT_ID ?? "").trim();
 const gaId = import.meta.env.PROD && /^G-[A-Z0-9]+$/.test(gaRaw) ? gaRaw : "";
 
+// upgrade-insecure-requests ships on the deployed site, which is always built by GitHub Actions. Local builds leave it out:
+// Safari applies it to http://localhost too, so `npm run preview` would load no CSS, JS or images there.
+const deployBuild = process.env.GITHUB_ACTIONS === "true";
+
 const csp = [
   "default-src 'self'",
   `script-src 'self'${gaId ? " https://www.googletagmanager.com" : ""}`,
@@ -32,7 +36,7 @@ const csp = [
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'none'",
-  "upgrade-insecure-requests",
+  ...(deployBuild ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
 const nav = [
