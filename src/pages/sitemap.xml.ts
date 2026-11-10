@@ -1,8 +1,9 @@
 import type { APIRoute } from "astro";
 
-// Every .astro page except the 404 and dynamic routes. New pages are picked up automatically.
+// Every .astro page except the 404, dynamic routes and unlinked experiments. New pages are picked up automatically.
+const EXPERIMENTS = ["photography/film"];
 const pages = Object.keys(import.meta.glob("./**/*.astro"))
-  .filter((file) => !file.includes("404") && !file.includes("["))
+  .filter((file) => !file.includes("404") && !file.includes("[") && !EXPERIMENTS.some((e) => file.includes(e)))
   .map((file) => file.replace(/^\.\//, "").replace(/(index)?\.astro$/, "").replace(/([^/])$/, "$1/"))
   .map((path) => (path === "/" ? "" : path))
   .sort();
