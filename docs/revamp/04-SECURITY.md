@@ -57,15 +57,15 @@ Ranked by how much harm each prevents. None of these depend on the revamp.
 **Nice to have**
 
 9. Add GitHub Pages' AAAA (IPv6) records for the apex (listed in GitHub's custom-domain docs).
-10. **Decided (2026-11-09), to do later: move domain email from Zoho to iCloud+ Custom Email Domain.** Abhiman has iCloud+, which includes custom email domains, so
+10. **Done (checked 2026-11-10): domain email runs on iCloud+ Custom Email Domain** (MX, SPF and DKIM point to iCloud; Zoho records are gone; DMARC is still missing, see item 5). History: Abhiman has iCloud+, which includes custom email domains, so
     `@abhimangupta.com` mail could run through iCloud Mail instead of Zoho. Setup happens in iCloud settings (Custom Email Domain), and Apple gives
     the exact MX, SPF, DKIM and verification records to add at the DNS provider. Caveats: the domain's MX records can point to only one mail
     provider, so switching replaces Zoho (move any mail you want to keep first). At switch time: remove Zoho's MX records, its SPF include
     (`dc-8e814c8572._spfm`) and its DKIM record (`zmail._domainkey`), add Apple's records, then add/update DMARC. Cancel Zoho only after
     iCloud receives mail. Apple's limits (number of domains
     and addresses per domain) should be checked in its current documentation at setup time.
-11. Use your own domain email (`abhiman@abhimangupta.com` on Zoho) as the public address instead of your university email: it
-    survives graduation and keeps your university inbox off scraper lists.
+11. **Done (2026-11-10):** the site shows `hello@abhimangupta.com` instead of the university email. The address is never written out in
+    the HTML; the footer script assembles it from two reversed halves, so raw-HTML scrapers miss it.
 
 ## 3. Rules for the revamp build (agents must follow)
 
@@ -73,6 +73,8 @@ Ranked by how much harm each prevents. None of these depend on the revamp.
 - Ship a **Content-Security-Policy as a `<meta http-equiv>` tag** on every page. Use Astro's built-in hash-based CSP support if the
   installed Astro version has it; otherwise write the meta tag in `BaseLayout`. Target policy:
   `default-src 'self'; script-src 'self' https://www.googletagmanager.com; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; img-src 'self' data: https://*.google-analytics.com https://www.googletagmanager.com; style-src 'self'; font-src 'self'; frame-src https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; form-action 'none'; upgrade-insecure-requests`.
+  `upgrade-insecure-requests` is emitted only in GitHub Actions builds (the deployed site): Safari applies it to
+  `http://localhost`, which would break local previews.
   Drop the Google entries if analytics changes; add only what's actually used. Allow `'unsafe-inline'` for styles only if Astro's
   inlined CSS makes it unavoidable, and say so in the handoff.
 - **No inline scripts.** Move the GA bootstrap into a small file under `/scripts/` so `script-src` needs no `'unsafe-inline'`.

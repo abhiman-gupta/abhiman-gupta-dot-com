@@ -8,18 +8,29 @@ interface Props {
   title: string;
   description: string;
   /** Which nav item is current. */
-  current?: "home" | "professional" | "photography" | "cool-stuff";
+  current?: "home" | "professional" | "photography" | "recommended";
   /** Home shows the full contact footer; every other page shows only the copyright line. */
   fullFooter?: boolean;
+  /** Social preview image in public/ (1200 × 630). Defaults to the name + portrait card from scripts/og/. */
+  image?: string;
+  imageAlt?: string;
 }
 
-const { title, description, current, fullFooter = false } = Astro.props;
+const {
+  title, description, current, fullFooter = false,
+  image = "/og.jpg", imageAlt = "Abhiman Gupta, with his portrait",
+} = Astro.props;
 const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const imageUrl = new URL(image, Astro.site).href;
 const year = new Date().getFullYear();
 
 // GA4 is added only in production builds, and only with a valid measurement ID.
 const gaRaw = (import.meta.env.PUBLIC_GA_MEASUREMENT_ID ?? "").trim();
 const gaId = import.meta.env.PROD && /^G-[A-Z0-9]+$/.test(gaRaw) ? gaRaw : "";
+
+// upgrade-insecure-requests ships on the deployed site, which is always built by GitHub Actions. Local builds leave it out:
+// Safari applies it to http://localhost too, so `npm run preview` would load no CSS, JS or images there.
+const deployBuild = process.env.GITHUB_ACTIONS === "true";
 
 const csp = [
   "default-src 'self'",
@@ -28,17 +39,17 @@ const csp = [
   `img-src 'self' data:${gaId ? " https://*.google-analytics.com https://www.googletagmanager.com" : ""}`,
   "style-src 'self'",
   "font-src 'self'",
-  "frame-src https://www.youtube-nocookie.com",
+  "frame-src 'none'",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'none'",
-  "upgrade-insecure-requests",
+  ...(deployBuild ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
 const nav = [
   { href: "/professional/", label: "Professional", key: "professional" },
   { href: "/photography/", label: "Photography", key: "photography" },
-  { href: "/cool-stuff/", label: "Cool Stuff", key: "cool-stuff" },
+  { href: "/recommended/", label: "Recommended", key: "recommended" },
   { href: "/#contact", label: "Contact", key: "contact" },
 ];
 ---
@@ -57,7 +68,16 @@ const nav = [
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
-    <meta name="twitter:card" content="summary" />
+    <meta property="og:site_name" content="Abhiman Gupta" />
+    <meta property="og:image" content={imageUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={imageAlt} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content={imageUrl} />
+    <meta name="twitter:image:alt" content={imageAlt} />
+    <link rel="sitemap" href="/sitemap.xml" />
+    <slot name="head" />
     {gaId && <script async src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`}></script>}
     {gaId && <script is:inline src="/scripts/ga-init.js" data-ga-id={gaId}></script>}
   </head>
@@ -90,7 +110,9 @@ const nav = [
         <>
           <p class="footer-big">Say <em>hello.</em></p>
           <div class="email-row">
-            <span class="email" id="email">abhimangupta@arizona.edu</span>
+            {/* The address is never written out in the HTML: the script reverses these two halves and joins them,
+                so bots that scrape raw HTML for addresses don't find it. Without JavaScript the spelled-out form shows. */}
+            <a class="email" id="email" data-u="olleh" data-d="moc.atpugnamihba">hello [at] abhimangupta [dot] com</a>
             <button class="copy-btn" id="copyBtn" hidden>Copy email</button>
           </div>
         </>
@@ -100,6 +122,7 @@ const nav = [
           <div class="links">
             <a href="https://www.instagram.com/abhimangupta/" target="_blank" rel="noopener noreferrer">Instagram ↗</a>
             <a href="https://www.linkedin.com/in/abhimangupta27/" target="_blank" rel="noopener noreferrer">LinkedIn ↗</a>
+            <a href="https://x.com/abhiman_gupta" target="_blank" rel="noopener noreferrer">X ↗</a>
           </div>
         )}
         <p class="label">© {year} Abhiman Gupta</p>
@@ -121,7 +144,13 @@ const nav = [
       document.addEventListener("keydown", (e) => { if (e.key === "Escape" && menu && !menu.hidden) { close(); menuBtn?.focus(); } });
 
       const copyBtn = document.getElementById("copyBtn");
-      const email = document.getElementById("email");
+      const email = document.getElementById("email") as HTMLAnchorElement | null;
+      if (email?.dataset.u && email.dataset.d) {
+        const flip = (t: string) => [...t].reverse().join("");
+        const address = `${flip(email.dataset.u)}@${flip(email.dataset.d)}`;
+        email.textContent = address;
+        email.href = `mailto:${address}`;
+      }
       if (copyBtn && email && navigator.clipboard) {
         copyBtn.hidden = false;
         copyBtn.addEventListener("click", () => {

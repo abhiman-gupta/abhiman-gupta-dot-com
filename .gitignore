@@ -2,3 +2,7 @@ dist/
 .astro/
 node_modules/
 .DS_Store
+
+# Legacy site build output
+_site/
+.sites/

@@ -121,7 +121,7 @@ Each item needs: name, link, one-line "why" in his voice (`TODO(copy)`), plus a 
 
 ## Contact
 
-- Email: abhimangupta@arizona.edu (live). `abhiman@abhimangupta.com` is a real mailbox on his domain, on Zoho today; he plans to move it to iCloud+ and drop Zoho. `TODO`: which is public?
+- Email: `hello@abhimangupta.com` (iCloud+ custom domain) is the public address, shown in the home footer via an obfuscated link.
 - LinkedIn: https://www.linkedin.com/in/abhimangupta27/
 - Instagram: @abhimangupta only (above)
 - Purpose line (live): "For research, internships, content, or portraits." (Portrait inquiries are still welcome.)
