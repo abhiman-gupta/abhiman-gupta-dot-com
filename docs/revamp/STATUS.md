@@ -62,11 +62,12 @@ Statuses: `todo` · `in progress` · `blocked` · `review` · `done` · `superse
 
 ## Security to-dos for Abhiman (details in `04-SECURITY.md` §2)
 
-- [ ] **Change the `www` CNAME** from `abhimangupta27.github.io` (that username no longer exists) to `abhiman-gupta.github.io`.
-- [ ] **Verify `abhimangupta.com` in GitHub** (profile → Settings → Pages → Add a domain).
-- [ ] 2FA (passkey or authenticator app) on GitHub, domain registrar, Zoho Mail, Google.
-- [ ] Domain auto-renew + registrar lock on.
-- [ ] Add a DMARC record (start with `p=none`), then a CAA record for `letsencrypt.org`.
+- [x] **`www` CNAME:** live DNS points to `abhiman-gupta.github.io` (checked 2026-11-10).
+- [x] **GitHub Pages domain verification:** `abhimangupta.com` is shown as verified in account settings (checked 2026-11-10).
+- [x] 2FA on GitHub, GoDaddy, iCloud and Google (reported by Abhiman 2026-11-10). GitHub uses SMS; an authenticator app or security key would be stronger where supported.
+- [x] Domain auto-renew enabled (reported by Abhiman 2026-11-10); GoDaddy transfer lock is on.
+- [x] DMARC monitoring record is present (`p=none`, reports to `hello@abhimangupta.com`; checked 2026-11-10).
+- [x] Apex CAA `0 issue "letsencrypt.org"` added and verified in DNS on 2026-11-10. Review it when changing hosting or adding services that need certificates for this domain.
 - [ ] OK for Claude to turn on Dependabot alerts/updates and a `main` ruleset (no force-push, no deletion)?
 - [ ] Analytics: keep GA4 (needs a consent banner for EU/UK visitors) or switch to cookieless analytics?
 
