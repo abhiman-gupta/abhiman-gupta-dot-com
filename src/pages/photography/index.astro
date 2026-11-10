@@ -25,7 +25,7 @@ const locations = await Promise.all(
     ),
   }))
 );
-const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name, n: l.photos.length, lat: l.lat, lon: l.lon })));
+const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name, n: l.photos.length, lat: l.lat, lon: l.lon, z: l.exact ? 2.4 : 1.6 })));
 const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ? "photo" : "photos"}`);
 ---
 <Base title="Photography · Abhiman Gupta" description="Photography by Abhiman Gupta, by place." current="photography">
@@ -61,7 +61,7 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
     <p class="label hint">Drag to turn</p>
   </section>
 
-  <section class="places wrap" aria-label="Places">
+  <section class="places" aria-label="Places">
     <p class="label">Places</p>
     <ul class="place-list">
       {locations.map((l) => (
@@ -80,7 +80,7 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
     {locations.map((l) => (
       <div class="place-detail" data-place={l.slug} hidden>
         <h2 class="place-title" tabindex="-1">{l.name}</h2>
-        <p class="label">{l.line}</p>
+        {l.line && <p class="label">{l.line}</p>}
         {l.thumbs.length > 0 ? (
           <div class="thumbs">
             {l.thumbs.map((t, i) => (
@@ -116,7 +116,7 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
   import world from "world-atlas/countries-110m.json";
   import us from "us-atlas/states-10m.json";
 
-  type Marker = { key: string; name: string; n: number; lat: number; lon: number };
+  type Marker = { key: string; name: string; n: number; lat: number; lon: number; z: number };
   const NS = "http://www.w3.org/2000/svg";
   const VB = 800;
   const R = 360;
@@ -283,9 +283,22 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
   // ---------- Side banners: how many places are out of view on each side ----------
   const WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
   const nudges = {
-    left: { btn: el("nudgeL") as HTMLButtonElement, text: el("nudgeL").querySelector(".ntext")!, key: "", targets: [] as Marker[] },
-    right: { btn: el("nudgeR") as HTMLButtonElement, text: el("nudgeR").querySelector(".ntext")!, key: "", targets: [] as Marker[] },
+    left: { btn: el("nudgeL") as HTMLButtonElement, text: el("nudgeL").querySelector(".ntext")!, key: "", targets: [] as Marker[], timer: 0, held: false },
+    right: { btn: el("nudgeR") as HTMLButtonElement, text: el("nudgeR").querySelector(".ntext")!, key: "", targets: [] as Marker[], timer: 0, held: false },
   };
+  type Nudge = (typeof nudges)["left"];
+  const NUDGE_MS = 3000;
+  function setNudge(n: Nudge, on: boolean) {
+    n.btn.classList.toggle("show", on);
+    n.btn.tabIndex = on ? 0 : -1;
+    n.btn.setAttribute("aria-hidden", on ? "false" : "true");
+  }
+  /** Show a banner, then fade it out after 3 s unless the pointer or keyboard focus is on it. */
+  function flashNudge(n: Nudge, ms = NUDGE_MS) {
+    setNudge(n, true);
+    clearTimeout(n.timer);
+    n.timer = window.setTimeout(() => { if (!n.held) setNudge(n, false); }, ms);
+  }
   function updateNudges() {
     const left: { m: Marker; d: number }[] = [], right: { m: Marker; d: number }[] = [];
     for (const p of pins) {
@@ -301,10 +314,9 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
       if (key === n.key) continue;
       n.key = key;
       const count = sorted.length;
-      n.btn.classList.toggle("show", count > 0);
-      n.btn.tabIndex = count > 0 ? 0 : -1;
-      n.btn.setAttribute("aria-hidden", count > 0 ? "false" : "true");
-      if (count > 0) {
+      if (count === 0) { clearTimeout(n.timer); setNudge(n, false); }
+      else {
+        flashNudge(n);
         const word = WORDS[count] ?? String(count);
         n.text.textContent = `${word} more`;
         n.btn.setAttribute("aria-label", `Turn the globe ${side}: ${count} more ${count === 1 ? "place" : "places"} with photos that way`);
@@ -312,10 +324,17 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
     }
   }
   for (const side of ["left", "right"] as const) {
-    nudges[side].btn.addEventListener("click", () => {
-      const m = nudges[side].targets[0];
+    const n = nudges[side];
+    n.btn.addEventListener("click", () => {
+      const m = n.targets[0];
       if (m) flyTo(m, Math.min(zoom, 1.4));
     });
+    const hold = () => { n.held = true; clearTimeout(n.timer); };
+    const release = () => { n.held = false; if (n.btn.classList.contains("show")) flashNudge(n, 1200); };
+    n.btn.addEventListener("pointerenter", hold);
+    n.btn.addEventListener("pointerleave", release);
+    n.btn.addEventListener("focus", hold);
+    n.btn.addEventListener("blur", release);
   }
 
   function setClasses() {
@@ -357,7 +376,7 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
     details.forEach((d) => (d.hidden = d.dataset.place !== key));
     drawer.classList.toggle("open", !!m);
     atlas.classList.toggle("drawer-open", !!m);
-    if (m) { drawer.removeAttribute("inert"); drawer.querySelector<HTMLElement>(`[data-place="${m.key}"] .place-title`)?.focus({ preventScroll: true }); flyTo(m, 2.4); }
+    if (m) { drawer.removeAttribute("inert"); drawer.querySelector<HTMLElement>(`[data-place="${m.key}"] .place-title`)?.focus({ preventScroll: true }); flyTo(m, m.z); }
     else { drawer.setAttribute("inert", ""); fly = { from: [rot[0], rot[1], zoom], to: [rot[0], rot[1], 1], t0: performance.now(), dur: reduced ? 1 : 700 }; }
     setClasses();
     lastInteract = performance.now();
@@ -591,7 +610,13 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
     .globe-stage { flex: none; height: calc(100vw - 32px + 84px); }
   }
 
-  .places { padding-block: clamp(32px, 5vw, 64px) clamp(60px, 9vw, 120px); max-width: 760px; }
+  /* The globe is the way in. The list stays for keyboard and screen-reader users and only appears while focused. */
+  .places { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .places:focus-within {
+    position: fixed; z-index: 45; left: 16px; bottom: 16px; width: min(420px, calc(100vw - 32px)); height: auto;
+    overflow: visible; clip-path: none; white-space: normal; padding: 14px 20px 4px; background: var(--paper);
+    border: 1px solid var(--line); box-shadow: 0 16px 40px -20px rgba(0, 0, 0, 0.4);
+  }
   .place-list { list-style: none; margin: 14px 0 0; padding: 0; border-top: 1px solid var(--line); }
   .place-list li { border-bottom: 1px solid var(--line); }
   .place-btn { display: flex; width: 100%; justify-content: space-between; align-items: baseline; gap: 16px; padding: 16px 0; text-align: left; }

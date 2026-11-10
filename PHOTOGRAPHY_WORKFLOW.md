@@ -16,18 +16,29 @@ A location with no photos yet still gets a marker (white with a red ring) and sa
 ## Add a new location
 
 1. Make a folder with a short, lowercase, hyphenated name: `photography/locations/tashkent/`.
-2. Add a `location.json`. `lat`/`lon` place the marker (right-click a spot in Google Maps to copy them); `region` is optional.
+2. Add a `location.json`. Only `country` is required; add as much as you know.
 
-   ```json
-   {
-     "name": "Tashkent",
-     "country": "Uzbekistan",
-     "lat": 41.2995,
-     "lon": 69.2401
-   }
-   ```
+   - **Just a country** (marker goes in the middle of it):
 
-   For US places add the state as `"region": "Arizona"`.
+     ```json
+     { "country": "India" }
+     ```
+
+   - **A US state** (marker goes in the middle of the state):
+
+     ```json
+     { "country": "United States", "region": "Utah" }
+     ```
+
+   - **An exact city** (marker goes on the spot; right-click a place in Google Maps to copy its coordinates):
+
+     ```json
+     { "name": "Tashkent", "country": "Uzbekistan", "lat": 41.2995, "lon": 69.2401 }
+     ```
+
+     For a US city add the state too: `"region": "Arizona"`.
+
+   Use the country's common English name. If the build can't find it on the map, it stops and tells you which file to fix.
 3. Add photos as above.
 
 ## Preview before publishing
