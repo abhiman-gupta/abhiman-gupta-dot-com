@@ -1,13 +1,15 @@
 ---
 import { getImage } from "astro:assets";
 import Base from "../../layouts/Base.astro";
-import { getAlbums, type Album } from "../../lib/photos";
+import { getLocations, type Location } from "../../lib/photos";
 
 export function getStaticPaths() {
-  return getAlbums().map((album) => ({ params: { slug: album.slug }, props: { album } }));
+  return getLocations()
+    .filter((l) => l.photos.length > 0)
+    .map((l) => ({ params: { slug: l.slug }, props: { album: { ...l, title: l.name } } }));
 }
 
-const { album } = Astro.props as { album: Album };
+const { album } = Astro.props as { album: Location & { title: string } };
 const frames = await Promise.all(
   album.photos.map(async (p, i) => {
     const ar = p.orientation === "portrait" ? 3 / 4 : 4 / 3;
@@ -19,7 +21,7 @@ const frames = await Promise.all(
 ---
 <Base title={`${album.title} · Photography · Abhiman Gupta`} description={`${album.title}: photographs by Abhiman Gupta.`} current="photography">
   <section class="roll-view" aria-label="Film roll">
-    <div class="roll-top wrap"><a href="/photography/">← All collections</a></div>
+    <div class="roll-top wrap"><a href="/photography/">← Globe</a></div>
     <div class="strip-viewport" id="viewport" tabindex="0" role="region" aria-roledescription="film roll" aria-label={`${album.title}. Use the left and right arrow keys to move between frames.`}>
       <div class="strip" id="strip">
         {frames.map((f) => (

@@ -17,10 +17,10 @@ npm run preview   # serve the production build
 | --- | --- |
 | `src/pages/` | Pages: Home, Professional, Photography (+ one page per album), Cool Stuff, 404 |
 | `src/layouts/Base.astro` | Header, footer, security policy, analytics |
-| `src/components/FilmStrip.astro` | The hanging film strips on the Photography page |
-| `src/lib/photos.ts` | Reads albums from `photography/collections/` at build time |
+| `src/lib/photos.ts` | Reads locations from `photography/locations/` at build time |
 | `src/styles/global.css` | Colors, type, layout |
-| `photography/collections/` | One folder per photo album (see `PHOTOGRAPHY_WORKFLOW.md`) |
+| `photography/locations/` | One folder per place, shown as a marker on the Photography globe (see `PHOTOGRAPHY_WORKFLOW.md`) |
+| `public/textures/earth.jpg` | Globe terrain: Natural Earth II, public domain (naturalearthdata.com) |
 | `docs/revamp/` | Design system, decisions, security notes and plans for future pages (`05-FUTURE.md`) |
 
 ## Common edits
