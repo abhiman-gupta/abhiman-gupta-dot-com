@@ -8,7 +8,7 @@ interface Props {
   title: string;
   description: string;
   /** Which nav item is current. */
-  current?: "home" | "professional" | "photography" | "cool-stuff";
+  current?: "home" | "professional" | "photography" | "recommended";
   /** Home shows the full contact footer; every other page shows only the copyright line. */
   fullFooter?: boolean;
 }
@@ -32,7 +32,7 @@ const csp = [
   `img-src 'self' data:${gaId ? " https://*.google-analytics.com https://www.googletagmanager.com" : ""}`,
   "style-src 'self'",
   "font-src 'self'",
-  "frame-src https://www.youtube-nocookie.com",
+  "frame-src 'none'",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'none'",
@@ -42,7 +42,7 @@ const csp = [
 const nav = [
   { href: "/professional/", label: "Professional", key: "professional" },
   { href: "/photography/", label: "Photography", key: "photography" },
-  { href: "/cool-stuff/", label: "Cool Stuff", key: "cool-stuff" },
+  { href: "/recommended/", label: "Recommended", key: "recommended" },
   { href: "/#contact", label: "Contact", key: "contact" },
 ];
 ---
@@ -94,7 +94,9 @@ const nav = [
         <>
           <p class="footer-big">Say <em>hello.</em></p>
           <div class="email-row">
-            <span class="email" id="email">abhimangupta@arizona.edu</span>
+            {/* The address is never written out in the HTML: the script reverses these two halves and joins them,
+                so bots that scrape raw HTML for addresses don't find it. Without JavaScript the spelled-out form shows. */}
+            <a class="email" id="email" data-u="olleh" data-d="moc.atpugnamihba">hello [at] abhimangupta [dot] com</a>
             <button class="copy-btn" id="copyBtn" hidden>Copy email</button>
           </div>
         </>
@@ -104,6 +106,7 @@ const nav = [
           <div class="links">
             <a href="https://www.instagram.com/abhimangupta/" target="_blank" rel="noopener noreferrer">Instagram ↗</a>
             <a href="https://www.linkedin.com/in/abhimangupta27/" target="_blank" rel="noopener noreferrer">LinkedIn ↗</a>
+            <a href="https://x.com/abhiman_gupta" target="_blank" rel="noopener noreferrer">X ↗</a>
           </div>
         )}
         <p class="label">© {year} Abhiman Gupta</p>
@@ -125,7 +128,13 @@ const nav = [
       document.addEventListener("keydown", (e) => { if (e.key === "Escape" && menu && !menu.hidden) { close(); menuBtn?.focus(); } });
 
       const copyBtn = document.getElementById("copyBtn");
-      const email = document.getElementById("email");
+      const email = document.getElementById("email") as HTMLAnchorElement | null;
+      if (email?.dataset.u && email.dataset.d) {
+        const flip = (t: string) => [...t].reverse().join("");
+        const address = `${flip(email.dataset.u)}@${flip(email.dataset.d)}`;
+        email.textContent = address;
+        email.href = `mailto:${address}`;
+      }
       if (copyBtn && email && navigator.clipboard) {
         copyBtn.hidden = false;
         copyBtn.addEventListener("click", () => {

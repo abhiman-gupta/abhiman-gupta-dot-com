@@ -1,0 +1,22 @@
+{
+  "sections": [
+    {
+      "title": "Favorite X posts",
+      "items": [
+        { "title": "How to Get Rich (without getting lucky)", "by": "Naval Ravikant", "url": "https://x.com/naval/status/1002103360646823936" }
+      ]
+    },
+    {
+      "title": "Favorite articles",
+      "items": [
+        { "title": "High Agency in 30 Minutes", "by": "George Mack", "url": "https://www.highagency.com/" }
+      ]
+    },
+    {
+      "title": "Favorite Shark Tank pitches",
+      "items": [
+        { "title": "Polygons", "by": "Two sheets that fold into six measuring spoons", "url": "https://www.youtube.com/watch?v=xm1ShtnwIgU" }
+      ]
+    }
+  ]
+}

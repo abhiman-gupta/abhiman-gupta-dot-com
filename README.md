@@ -15,7 +15,7 @@ npm run preview   # serve the production build
 
 | Path | What it is |
 | --- | --- |
-| `src/pages/` | Pages: Home, Professional, Photography (+ one page per album), Cool Stuff, 404 |
+| `src/pages/` | Pages: Home, Professional, Photography, Recommended, 404 |
 | `src/layouts/Base.astro` | Header, footer, security policy, analytics |
 | `src/lib/photos.ts` | Reads locations from `photography/locations/` at build time |
 | `src/styles/global.css` | Colors, type, layout |
@@ -26,7 +26,7 @@ npm run preview   # serve the production build
 ## Common edits
 
 - **Photos:** follow `PHOTOGRAPHY_WORKFLOW.md`.
-- **Shark Tank videos:** `src/pages/cool-stuff.astro`.
+- **Recommended** (X posts, articles, Shark Tank pitches): one line each in `src/data/recommended.json`.
 - **Home text:** `src/pages/index.astro`.
 
 ## Deploy

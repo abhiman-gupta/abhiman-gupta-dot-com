@@ -13,7 +13,8 @@ export default defineConfig({
   vite: { build: { assetsInlineLimit: 0 } },
   redirects: {
     "/academia/": "/professional/",
-    "/recommendations/": "/cool-stuff/",
+    "/recommendations/": "/recommended/",
+    "/cool-stuff/": "/recommended/",
     "/notes/": "/",
     "/contact/": "/#contact",
     // Old per-album film-roll pages; photos now open from the globe.
