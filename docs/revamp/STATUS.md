@@ -75,9 +75,10 @@ Statuses: `todo` · `in progress` · `blocked` · `review` · `done` · `superse
 - [ ] **Turn on Dependabot alerts and a `main` ruleset** (approved 2026-11-10). Claude couldn't: the local `gh` login (`abhimangupta`) has
   read-only access to `abhiman-gupta/abhiman-gupta-dot-com`. In the repo: Settings → Advanced Security → Dependabot alerts → Enable;
   Settings → Rules → Rulesets → New branch ruleset: target the default branch, keep "Restrict deletions" and "Block force pushes", Active.
-- [ ] `public/.well-known/security.txt` **expires 2027-11-10**: bump the `Expires` date before then.
-- [ ] Before merging the Dependabot PR that moves `upload-pages-artifact` to v4+/v5, add `include-hidden-files: true` to it in
-  `.github/workflows/pages.yml`, or `.well-known/` stops deploying.
+- [ ] `public/.well-known/security.txt` **expires 2027-11-10**: bump the `Expires` date before then. The "Check live site"
+  workflow fails (and GitHub emails Abhiman) once it's within 30 days.
+- [x] `include-hidden-files: true` is already set in `pages.yml`, so the Dependabot upgrade of `upload-pages-artifact` keeps `.well-known/`.
+  "Check live site" (`.github/workflows/site-check.yml`) checks key pages and files after every deploy and monthly; active once on `main`.
 - [ ] Analytics: keep GA4 (needs a consent banner for EU/UK visitors) or switch to cookieless analytics?
 
 ## Later (decided, not scheduled)

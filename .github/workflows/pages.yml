@@ -39,6 +39,9 @@ jobs:
         uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: dist
+          # v4+ of this action skips dot-folders unless told otherwise; .well-known/security.txt lives in one.
+          # v3 ignores this input (it may log an "unexpected input" warning, which is harmless).
+          include-hidden-files: true
 
   deploy:
     environment:

@@ -1,0 +1,38 @@
+name: Check live site
+
+# Visits the live site after every deploy and once a month. If anything below is wrong the run fails,
+# and GitHub emails the repo owner. The log says exactly which check failed.
+on:
+  workflow_run:
+    workflows: ["Deploy website to GitHub Pages"]
+    types: [completed]
+  schedule:
+    - cron: "0 15 1 * *" # 1st of each month, 08:00 Tucson time
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Key pages and files are online
+        run: |
+          sleep 60 # give GitHub Pages a minute to publish
+          fail=0
+          for path in / /photography/ /recommended/ /og.jpg /sitemap.xml /robots.txt /.well-known/security.txt; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --retry 3 --retry-delay 10 "https://abhimangupta.com$path")
+            if [ "$code" = "200" ]; then echo "OK      $path"; else echo "::error::$path returned HTTP $code"; fail=1; fi
+          done
+          exit $fail
+      - name: security.txt is not about to expire
+        run: |
+          expires=$(curl -s https://abhimangupta.com/.well-known/security.txt | sed -n 's/^Expires: *//p' | tr -d '\r')
+          days=$(( ( $(date -d "$expires" +%s) - $(date +%s) ) / 86400 ))
+          echo "security.txt expires $expires ($days days from now)"
+          if [ "$days" -lt 30 ]; then
+            echo "::error::security.txt expires in $days days. Update the Expires date in public/.well-known/security.txt."
+            exit 1
+          fi
