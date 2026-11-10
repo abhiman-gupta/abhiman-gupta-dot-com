@@ -13,7 +13,7 @@
    `concurrency: pages`, minimal permissions, triggers: push to `main` + `workflow_dispatch`.
 2. Add a PR check workflow (build only, no deploy) so `revamp-v2` PRs show green/red. Use `persist-credentials: false` on
    checkout, and add `.github/dependabot.yml` for `npm` and `github-actions` (weekly) per `04-SECURITY.md`.
-3. Rewrite `README.md`: stack, `npm run dev`, adding photos (link `PHOTOGRAPHY_WORKFLOW.md`), adding an article,
+3. Rewrite `docs/DEVELOPMENT.md` (the README stays two lines): stack, `npm run dev`, adding photos (link `PHOTOGRAPHY_WORKFLOW.md`), adding an article,
    adding picks, editing copy in `src/data/copy/`, GA variable, deploy.
 4. Open a PR `revamp-v2` → `main` with screenshots (desktop + mobile, paper pages and darkroom pages) and the T11 scores.
 5. **Stop and ask Abhiman** before merging. After merge: confirm the Pages run succeeds, the custom domain

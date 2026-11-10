@@ -11,7 +11,7 @@ deploy + PR-check workflows, Dependabot. It was built directly from the mockup r
 Photography is a terrain globe (Natural Earth II, red markers) of photo locations, grouped by country; photos open in a plain dark
 full-screen viewer. Cool Stuff is renamed **Recommended** (`/recommended/`, data in `src/data/recommended.json`: favorite X posts,
 articles, Shark Tank pitches as links, no embeds). Public email is `hello@abhimangupta.com` (obfuscated footer link), plus an X link.
-Older docs (00–02, 05, README) still describe film and Cool Stuff in places; this file and the decisions log win where they disagree.
+Older docs (00–02, 05, DEVELOPMENT.md) still describe film and Cool Stuff in places; this file and the decisions log win where they disagree.
 
 Statuses: `todo` · `in progress` · `blocked` · `review` · `done` · `superseded`
 
