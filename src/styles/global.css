@@ -87,10 +87,20 @@ em, i { font-style: normal; }
 .page-title { font: 400 clamp(3rem, 10vw, 9rem)/0.92 var(--display); letter-spacing: var(--d-track); margin: 0; }
 .page-title em { color: var(--muted); }
 
-/* Home hero */
-.hero { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: clamp(20px, 3vw, 48px); padding-block: clamp(28px, 6vw, 80px) clamp(40px, 7vw, 110px); align-items: end; }
-.hero-text { grid-column: 1 / 8; display: grid; gap: clamp(18px, 2.4vw, 30px); min-width: 0; }
-.hero-name { font: 400 clamp(2.5rem, 6.2vw, 6.4rem)/1 var(--display); letter-spacing: var(--d-track); margin: 0; text-wrap: balance; }
+/* Home hero. The heading's cap line sits level with the top of the head in the portrait:
+   the photo spans 5 of 12 columns at 3:4, and the head starts 9.55% down it (measured from headshot.jpg). */
+.hero {
+  --hero-gap: clamp(20px, 3vw, 48px);
+  container-type: inline-size;
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: var(--hero-gap);
+  padding-block: clamp(28px, 6vw, 80px) clamp(40px, 7vw, 110px); align-items: start;
+}
+.hero-text {
+  --photo-w: calc((100cqw - 11 * var(--hero-gap)) * 5 / 12 + 4 * var(--hero-gap));
+  grid-column: 1 / 8; display: grid; align-content: start; gap: clamp(18px, 2.4vw, 30px); min-width: 0;
+  padding-top: calc(var(--photo-w) * 4 / 3 * 0.0955);
+}
+.hero-name { font: 400 clamp(2.5rem, 6.2vw, 6.4rem)/1 var(--display); letter-spacing: var(--d-track); margin: 0; text-wrap: balance; text-box: trim-start cap alphabetic; }
 .hero-name em { color: var(--muted); }
 .hero-lead { font-size: clamp(1.2rem, 1.9vw, 1.6rem); line-height: 1.42; max-width: 38ch; margin: 0; }
 .hero-photo { grid-column: 8 / 13; margin: 0; min-width: 0; }
@@ -98,6 +108,7 @@ em, i { font-style: normal; }
 @media (max-width: 860px) {
   .hero { grid-template-columns: 1fr; align-items: start; }
   .hero-text, .hero-photo { grid-column: 1 / -1; }
+  .hero-text { padding-top: 0; }
   .hero-photo { width: min(100%, 56svh); }
 }
 
