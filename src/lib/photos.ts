@@ -1,6 +1,6 @@
 /**
  * Build-time photo loader. One folder per location in photography/locations/<slug>/ with a location.json and photos
- * named in viewing order (01.jpg, 02.jpg, ...). Every photo must be 4:3 or 3:4; anything else fails the build.
+ * named in viewing order (01.jpg, 02.jpg, ...). Any crop works: tiles share one width and keep the photo's own shape.
  *
  * location.json needs only "country". Everything else is optional:
  *   { "country": "India" }                                          → marker in the middle of India
@@ -23,7 +23,7 @@ const imageModules = import.meta.glob<{ default: ImageMetadata }>(
 );
 const metaModules = import.meta.glob<{ default: Meta }>("/photography/locations/*/location.json", { eager: true });
 
-export type Photo = { image: ImageMetadata; file: string; orientation: "portrait" | "landscape" };
+export type Photo = { image: ImageMetadata; file: string; /** width ÷ height */ ratio: number };
 export type Location = {
   slug: string;
   /** Heading shown for the place: the city if given, else the region, else the country. */
@@ -92,13 +92,7 @@ export function getLocations(): Location[] {
       .sort(([a], [b]) => collator.compare(a, b))
       .map(([p, m]) => {
         const { width, height } = m.default;
-        const ratio = width / height;
-        const portrait = Math.abs(ratio - 3 / 4) < 0.01;
-        const landscape = Math.abs(ratio - 4 / 3) < 0.01;
-        if (!portrait && !landscape) {
-          throw new Error(`${p} is ${width}×${height}. Photos must be cropped to 4:3 or 3:4.`);
-        }
-        return { image: m.default, file: p.split("/").at(-1)!, orientation: portrait ? "portrait" : "landscape" };
+        return { image: m.default, file: p.split("/").at(-1)!, ratio: width / height };
       });
 
     const name = meta.name ?? meta.region ?? meta.country;
