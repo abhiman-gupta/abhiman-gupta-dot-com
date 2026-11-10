@@ -20,7 +20,7 @@ const locations = await Promise.all(
       l.photos.map(async (p) => {
         const img = await getImage({ src: p.image, widths: [400, 800], format: "webp", quality: 80 });
         const full = await getImage({ src: p.image, widths: [1000, 1600, 2400], format: "webp", quality: 85 });
-        return { src: img.src, srcset: img.srcSet.attribute, full: full.src, fullSrcset: full.srcSet.attribute, portrait: p.orientation === "portrait" };
+        return { src: img.src, srcset: img.srcSet.attribute, w: p.image.width, h: p.image.height, full: full.src, fullSrcset: full.srcSet.attribute };
       })
     ),
   }))
@@ -84,8 +84,8 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
         {l.thumbs.length > 0 ? (
           <div class="thumbs">
             {l.thumbs.map((t, i) => (
-              <a href={t.full} class={t.portrait ? "thumb portrait" : "thumb"} data-full={t.full} data-full-srcset={t.fullSrcset} data-i={i}>
-                <img src={t.src} srcset={t.srcset} sizes="(max-width: 700px) 45vw, 190px" alt={`${l.name}, photo ${i + 1}`} loading="lazy" />
+              <a href={t.full} class="thumb" data-full={t.full} data-full-srcset={t.fullSrcset} data-i={i}>
+                <img src={t.src} srcset={t.srcset} width={t.w} height={t.h} sizes="(max-width: 700px) 45vw, 190px" alt={`${l.name}, photo ${i + 1}`} loading="lazy" />
               </a>
             ))}
           </div>
@@ -640,10 +640,10 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
   .close { display: block; margin: 0 0 18px auto; }
   .close:hover { color: var(--ink); }
   .place-title { font: 400 clamp(2rem, 4vw, 3rem)/1 var(--display); letter-spacing: var(--d-track); margin: 0 0 6px; outline: none; }
+  /* Two equal-width columns; each photo keeps its own shape, so heights vary. */
   .thumbs { columns: 2; column-gap: 12px; margin-top: 24px; }
   .thumb { display: block; margin-bottom: 12px; break-inside: avoid; }
-  .thumb img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: var(--paper-2); transition: opacity 0.3s; }
-  .thumb.portrait img { aspect-ratio: 3 / 4; }
+  .thumb img { display: block; width: 100%; height: auto; background: var(--paper-2); transition: opacity 0.3s; }
   .thumb:hover img { opacity: 0.85; }
   .empty { margin-top: 24px; color: var(--muted); }
 

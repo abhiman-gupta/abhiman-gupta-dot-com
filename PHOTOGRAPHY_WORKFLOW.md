@@ -5,7 +5,8 @@ Clicking a photo opens it full screen. Adding photos means adding files; no code
 
 ## Add photos to a location
 
-1. In Lightroom, crop every photo to **4:3 or 3:4** (the build stops with an error if a photo is any other shape).
+1. In Lightroom, crop however you like. 4:3 or 3:4 is the usual, but any shape works: every tile in a location's list is the
+   same width and shows the whole photo, so a wider or taller crop just makes a shorter or longer tile.
 2. Export as sRGB JPEG, quality 80–90, long edge about 2000–2400 px. Turn off location metadata in the export settings.
 3. Name the files in viewing order: `01.jpg`, `02.jpg`, `03.jpg`, … (numbers sort naturally, so `10.jpg` comes after `09.jpg`).
 4. Put them in the location's folder, e.g. `photography/locations/tucson/`.
