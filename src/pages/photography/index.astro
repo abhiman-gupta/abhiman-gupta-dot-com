@@ -446,6 +446,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
       r.node.style.setProperty("--gfade", String(fade));
       r.node.classList.toggle("faded", fade < 0.3); // too faint to aim at
     });
+    gatherHead.classList.toggle("covered", above > 0);
     for (const [btn, n, way] of [[gatherUp, above, "above"], [gatherDown, below, "below"]] as const) {
       btn.hidden = n === 0;
       if (!n) continue;
@@ -1345,6 +1346,10 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     .held-actions { margin-left: auto; }
   }
   .gather-title { margin: 0; padding: 8px 0; color: var(--ink); }
+  /* With a roll scrolled up behind them, the place name and Put back step aside (Esc or a click on the floor still puts
+     back); "more ↑" stays, as the way back up. */
+  .gather-title, #gatherClose { transition: opacity 0.25s, visibility 0.25s; }
+  #gatherHead.covered .gather-title, #gatherHead.covered #gatherClose { opacity: 0; visibility: hidden; pointer-events: none; }
   /* "One more ↓": the same dark pill, above and below a gathered stack that has more rolls than fit. */
   .more-rolls {
     display: inline-flex; align-items: center; gap: 8px; padding: 7px 13px; border-radius: 999px; white-space: nowrap;
