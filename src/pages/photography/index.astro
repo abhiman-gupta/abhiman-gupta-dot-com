@@ -215,6 +215,13 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   let pan = 0;
   let panMax = 0;
   let scale = 1;
+  /** How much the held roll is enlarged. It opens by being scaled up, and once open it is laid out at that size instead
+      (big), with no scale left on it: Safari draws a scaled-up layer at its small size and stretches it, which left
+      the photos of an open roll soft on an iPhone however large the files behind them. */
+  let openScale = 1;
+  let big = false;
+  /** Ask for the larger files for a roll's photos, now that they are shown large. */
+  const sharpen = (r: Roll) => { for (const a of r.shots) a.querySelector("img")!.sizes = "(max-width: 700px) 90vw, 1100px"; };
   let top = rolls.length;
   let topRoll: Roll | null = null;
   const raise = (r: Roll) => { if (r !== topRoll) { topRoll = r; r.node.style.setProperty("--z", String(++top)); } };
@@ -373,6 +380,9 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   function fit(r: Roll, keepPan = false) {
     // Up to 855 px tall (half as big again as it used to be), but it stays clear of the header and Put back above and the
     // bottom of the screen, and the name on the leader always fits across the screen, which is what limits it on phones.
+    // Measured at its floor size: an open roll laid out big goes back to that for a moment, unseen, and is made big again below.
+    const wasBig = big;
+    if (wasBig) { r.node.classList.add("loose"); r.node.style.removeProperty("--h"); big = false; }
     const W = floor.clientWidth, H = floor.clientHeight;
     const lead = r.box.querySelector<HTMLElement>(".leader")!.offsetWidth;
     // The leader starts 0.12 of the film's height in from the strip's end, which opens 24 px from the left edge.
@@ -380,7 +390,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     const want = Math.min(855, W * 0.9, H - TOP_ROOM - BOTTOM_ROOM, ((W - 36) * h) / (lead + h * 0.12));
     // Centred in the room below Put back.
     heldY = (TOP_ROOM + H - BOTTOM_ROOM) / 2;
-    scale = want / r.box.offsetHeight;
+    scale = openScale = want / r.box.offsetHeight;
     const width = r.box.offsetWidth * scale;
     panMax = Math.max(0, (width - floor.clientWidth) / 2 + 24);
     // Every roll opens at its left end, on the name; the frames are wound in from the right.
@@ -389,6 +399,25 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     r.node.style.setProperty("--s", String(scale));
     centres = r.shots.map((a) => a.offsetLeft + a.offsetWidth / 2 - r.box.offsetWidth / 2);
     atHeld(r, pan);
+    if (wasBig) { enlarge(r); r.node.classList.remove("loose"); }
+  }
+  /** Lay the held roll out at the size it is shown, in place of scaling it up: everything on the film is sized from
+      --h, so it looks the same, but the photos are now drawn at full size. Its middle stays put (the strip is
+      centred on its position), so nothing on screen moves. */
+  function enlarge(r: Roll) {
+    if (held !== r || big) return;
+    // Mid-glide the change would be eased as well; it waits for the glide to finish.
+    if (r.node.classList.contains("gliding")) { window.setTimeout(() => enlarge(r), 120); return; }
+    const looseAlready = r.node.classList.contains("loose");
+    r.node.classList.add("loose");
+    r.node.style.setProperty("--h", `${r.box.offsetHeight * openScale}px`);
+    r.node.style.setProperty("--s", "1");
+    scale = 1;
+    big = true;
+    centres = r.shots.map((a) => a.offsetLeft + a.offsetWidth / 2 - r.box.offsetWidth / 2);
+    atHeld(r, pan);
+    void r.box.offsetWidth;
+    if (!looseAlready) r.node.classList.remove("loose");
   }
   function hold(r: Roll, focus = true) {
     if (held === r) return;
@@ -410,7 +439,12 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     fit(r);
     for (const a of r.shots) a.tabIndex = 0;
     // The larger photos are asked for once the roll has finished opening: fetched and decoded during the move, they made it stutter.
-    window.setTimeout(() => { if (held === r) for (const a of r.shots) a.querySelector("img")!.sizes = "(max-width: 700px) 90vw, 1100px"; }, reduced ? 0 : 750);
+    // It is laid out at its open size then too (see enlarge).
+    window.setTimeout(() => {
+      if (held !== r) return;
+      enlarge(r);
+      sharpen(r);
+    }, reduced ? 0 : 750);
     r.pick.tabIndex = -1;
     el("heldName").textContent = r.name;
     el("heldTitle").textContent = r.name;
@@ -499,7 +533,12 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     if (!r) return;
     held = null;
     const at = { dx: floor.clientWidth / 2 - r.box.offsetLeft + pan, dy: heldY - r.box.offsetTop };
-    relayout(r, () => { floor.classList.remove("holding"); r.node.classList.remove("held"); }, at);
+    // Back to its floor size, scaled up to look the same, so it shrinks away from there as it always has.
+    relayout(r, () => {
+      floor.classList.remove("holding"); r.node.classList.remove("held");
+      if (big) { r.node.style.removeProperty("--h"); r.node.style.setProperty("--s", String(openScale)); big = false; }
+    }, at);
+    scale = 1;
     r.node.style.removeProperty("--s");
     place(r, r.dx, r.dy);
     for (const a of r.shots) a.tabIndex = -1;
@@ -542,6 +581,9 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     for (const r of list) { r.node.style.setProperty("--s", String(gScale)); place(r, 0, 0); }
     if (!keep) { gTop = 0; gPans.clear(); }
     layoutGathered();
+    // Like a held roll, each is laid out at the size it is shown once it has arrived, and given its larger photos.
+    const mine = ++gTurn;
+    window.setTimeout(() => { if (gathered === list && mine === gTurn) for (const r of list) { gEnlarge(r); sharpen(r); } }, reduced ? 0 : 750);
     floor.classList.add("gathering");
     gatherTitle.textContent = title;
     gatherHead.hidden = false;
@@ -555,6 +597,27 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
       less). gPans: how far each roll is wound sideways (0 or less). */
   let gScale = 1, gStep = 0, gTop = 0;
   const gPans = new Map<Roll, number>();
+  /** Gathered rolls laid out at the size they are shown, with no scale left on them (see enlarge). */
+  const gBig = new Set<Roll>();
+  /** Counts gatherings, so a stack gathered again (on a resize) isn't enlarged early by the last one's timer. */
+  let gTurn = 0;
+  /** Switch a gathered roll between scaled up and laid out big, with nothing on screen moving: its position (--x, --y)
+      is its middle either way. */
+  function gEnlarge(r: Roll, on = true) {
+    if (gBig.has(r) === on) return;
+    r.node.classList.add("loose");
+    if (on) {
+      r.node.style.setProperty("--h", `${r.box.offsetHeight * gScale}px`);
+      r.node.style.setProperty("--s", "1");
+      gBig.add(r);
+    } else {
+      r.node.style.removeProperty("--h");
+      r.node.style.setProperty("--s", String(gScale));
+      gBig.delete(r);
+    }
+    void r.box.offsetWidth;
+    r.node.classList.remove("loose");
+  }
   /** Place every gathered roll from gTop and gPans, keeping both within their ends. */
   function layoutGathered() {
     const list = gathered;
@@ -570,7 +633,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
       if (G_ROOM - top > 2) above++;
       else if (top + tall - (H - G_ROOM) > 2) below++;
       r.node.style.setProperty("--y", `${top + tall / 2}px`);
-      const w = r.box.offsetWidth * gScale, across = W - 48;
+      const w = r.box.offsetWidth * (gBig.has(r) ? 1 : gScale), across = W - 48;
       const pan = w <= across ? 0 : clamp(gPans.get(r) ?? 0, across - w, 0);
       gPans.set(r, pan);
       r.node.style.setProperty("--x", `${(w <= across ? (W - w) / 2 : 24 + pan) + w / 2}px`);
@@ -607,6 +670,8 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     gathered = null;
     floor.classList.remove("gathering");
     for (const r of list) {
+      // Back to its floor size, scaled to look the same, so it shrinks away from there.
+      gEnlarge(r, false);
       r.node.classList.remove("gathered", "faded");
       for (const v of ["--x", "--y", "--s", "--gfade"]) r.node.style.removeProperty(v);
       place(r, r.dx, r.dy);
