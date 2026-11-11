@@ -220,6 +220,8 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
       the photos of an open roll soft on an iPhone however large the files behind them. */
   let openScale = 1;
   let big = false;
+  /** Ask for the larger files for a roll's photos, now that they are shown large. */
+  const sharpen = (r: Roll) => { for (const a of r.shots) a.querySelector("img")!.sizes = "(max-width: 700px) 90vw, 1100px"; };
   let top = rolls.length;
   let topRoll: Roll | null = null;
   const raise = (r: Roll) => { if (r !== topRoll) { topRoll = r; r.node.style.setProperty("--z", String(++top)); } };
@@ -441,7 +443,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     window.setTimeout(() => {
       if (held !== r) return;
       enlarge(r);
-      for (const a of r.shots) a.querySelector("img")!.sizes = "(max-width: 700px) 90vw, 1100px";
+      sharpen(r);
     }, reduced ? 0 : 750);
     r.pick.tabIndex = -1;
     el("heldName").textContent = r.name;
@@ -579,6 +581,9 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     for (const r of list) { r.node.style.setProperty("--s", String(gScale)); place(r, 0, 0); }
     if (!keep) { gTop = 0; gPans.clear(); }
     layoutGathered();
+    // Like a held roll, each is laid out at the size it is shown once it has arrived, and given its larger photos.
+    const mine = ++gTurn;
+    window.setTimeout(() => { if (gathered === list && mine === gTurn) for (const r of list) { gEnlarge(r); sharpen(r); } }, reduced ? 0 : 750);
     floor.classList.add("gathering");
     gatherTitle.textContent = title;
     gatherHead.hidden = false;
@@ -592,6 +597,27 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
       less). gPans: how far each roll is wound sideways (0 or less). */
   let gScale = 1, gStep = 0, gTop = 0;
   const gPans = new Map<Roll, number>();
+  /** Gathered rolls laid out at the size they are shown, with no scale left on them (see enlarge). */
+  const gBig = new Set<Roll>();
+  /** Counts gatherings, so a stack gathered again (on a resize) isn't enlarged early by the last one's timer. */
+  let gTurn = 0;
+  /** Switch a gathered roll between scaled up and laid out big, with nothing on screen moving: its position (--x, --y)
+      is its middle either way. */
+  function gEnlarge(r: Roll, on = true) {
+    if (gBig.has(r) === on) return;
+    r.node.classList.add("loose");
+    if (on) {
+      r.node.style.setProperty("--h", `${r.box.offsetHeight * gScale}px`);
+      r.node.style.setProperty("--s", "1");
+      gBig.add(r);
+    } else {
+      r.node.style.removeProperty("--h");
+      r.node.style.setProperty("--s", String(gScale));
+      gBig.delete(r);
+    }
+    void r.box.offsetWidth;
+    r.node.classList.remove("loose");
+  }
   /** Place every gathered roll from gTop and gPans, keeping both within their ends. */
   function layoutGathered() {
     const list = gathered;
@@ -607,7 +633,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
       if (G_ROOM - top > 2) above++;
       else if (top + tall - (H - G_ROOM) > 2) below++;
       r.node.style.setProperty("--y", `${top + tall / 2}px`);
-      const w = r.box.offsetWidth * gScale, across = W - 48;
+      const w = r.box.offsetWidth * (gBig.has(r) ? 1 : gScale), across = W - 48;
       const pan = w <= across ? 0 : clamp(gPans.get(r) ?? 0, across - w, 0);
       gPans.set(r, pan);
       r.node.style.setProperty("--x", `${(w <= across ? (W - w) / 2 : 24 + pan) + w / 2}px`);
@@ -644,6 +670,8 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     gathered = null;
     floor.classList.remove("gathering");
     for (const r of list) {
+      // Back to its floor size, scaled to look the same, so it shrinks away from there.
+      gEnlarge(r, false);
       r.node.classList.remove("gathered", "faded");
       for (const v of ["--x", "--y", "--s", "--gfade"]) r.node.style.removeProperty(v);
       place(r, r.dx, r.dy);
