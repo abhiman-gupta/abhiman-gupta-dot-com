@@ -1,7 +1,9 @@
 # Photography workflow
 
-The Photography page is a globe. Each **location** is one folder and shows up as a red marker; clicking it lists that place's photos.
-Clicking a photo opens it full screen. Adding photos means adding files; no code changes.
+The Photography page is film on the floor with a small globe in the corner. Each **collection** is one folder: one strip of
+film, and one red marker on the globe (collections within about 25 km of each other share a marker). Only a few strips are
+on the floor at a time — only the featured ones — and every collection can be reached from the globe.
+Adding photos means adding files; no code changes.
 
 ## Add photos to a location
 
@@ -42,6 +44,16 @@ A location with no photos yet still gets a marker (white with a red ring) and sa
      For a US city add the state too: `"region": "Arizona"`.
 
    Use the country's common English name. If the build can't find it on the map, it stops and tells you which file to fix.
+
+   - **A collection that isn't named after a place** (a series, or portraits named after the person): give `name` for the
+     title and `place` for where it was shot.
+
+     ```json
+     { "name": "Ashley", "place": "Tucson", "region": "Arizona", "country": "United States", "lat": 32.2226, "lon": -110.9747 }
+     ```
+
+   - **Featured:** add `"featured": true` to put the collection on the floor; one without it is reached only from the
+     globe. The floor holds 6 strips (4 on phones); if more than that are featured, a random few are shown on each visit.
 3. Add photos as above.
 
 ## Preview before publishing

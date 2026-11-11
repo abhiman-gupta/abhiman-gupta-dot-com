@@ -1,5 +1,5 @@
 /* abhimangupta.com: monochrome, Bone background, DM Mono + DM Sans, no italics.
-   Tokens follow docs/revamp/01-DESIGN-SYSTEM.md. The UI stays monochrome; the photos and the photography globe carry the colour. */
+   Tokens follow docs/revamp/01-DESIGN-SYSTEM.md. The UI stays monochrome; the photos carry the colour. */
 :root {
   --paper: #ecebe6;
   --paper-2: #e1e0da;

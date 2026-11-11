@@ -32,6 +32,7 @@ const gaId = import.meta.env.PROD && /^G-[A-Z0-9]+$/.test(gaRaw) ? gaRaw : "";
 // Safari applies it to http://localhost too, so `npm run preview` would load no CSS, JS or images there.
 const deployBuild = process.env.GITHUB_ACTIONS === "true";
 
+// The dev server injects inline styles/scripts, which the strict policy would block, so the policy is production-only.
 const csp = [
   "default-src 'self'",
   `script-src 'self'${gaId ? " https://www.googletagmanager.com" : ""}`,
@@ -58,7 +59,7 @@ const nav = [
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta http-equiv="Content-Security-Policy" content={csp} />
+    {!import.meta.env.DEV && <meta http-equiv="Content-Security-Policy" content={csp} />}
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <title>{title}</title>
     <meta name="description" content={description} />
