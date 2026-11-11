@@ -1,7 +1,9 @@
 {
-  "name": "Albuquerque",
+  "name": "Balloon Festival 2026",
+  "place": "Albuquerque",
   "region": "New Mexico",
   "country": "United States",
   "lat": 35.0844,
-  "lon": -106.6504
+  "lon": -106.6504,
+  "featured": true
 }

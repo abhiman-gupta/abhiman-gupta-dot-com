@@ -6,6 +6,11 @@
  *   { "country": "India" }                                          → marker in the middle of India
  *   { "country": "United States", "region": "Utah" }                → marker in the middle of Utah
  *   { "name": "Tucson", "region": "Arizona", "country": "United States", "lat": 32.22, "lon": -110.97 } → exact spot
+ *
+ * A folder is a collection, so "name" can be anything: a place, a series ("Tucson Light"), a person for portraits.
+ * When the name isn't the place, say where it was shot with "place": { "name": "Priya", "place": "Tucson", ... }.
+ * Collections within about 25 km of each other share one marker on the globe.
+ * "featured": true puts a collection on the floor of the photography page; every collection is on the globe either way.
  */
 import type { ImageMetadata } from "astro";
 import { geoArea, geoCentroid } from "d3-geo";
@@ -15,7 +20,7 @@ import type { Feature, Geometry, MultiPolygon, Polygon } from "geojson";
 import world from "world-atlas/countries-110m.json";
 import us from "us-atlas/states-10m.json";
 
-type Meta = { name?: string; region?: string; country: string; lat?: number; lon?: number };
+type Meta = { name?: string; place?: string; featured?: boolean; region?: string; country: string; lat?: number; lon?: number };
 
 const imageModules = import.meta.glob<{ default: ImageMetadata }>(
   "/photography/locations/*/*.{jpg,jpeg,png,webp,JPG,JPEG}",
@@ -26,8 +31,12 @@ const metaModules = import.meta.glob<{ default: Meta }>("/photography/locations/
 export type Photo = { image: ImageMetadata; file: string; /** width ÷ height */ ratio: number };
 export type Location = {
   slug: string;
-  /** Heading shown for the place: the city if given, else the region, else the country. */
+  /** The collection's title: "name" if given, else the region, else the country. */
   name: string;
+  /** Where it was shot, for the globe: "place" if given, else the same as name. */
+  place: string;
+  /** Dropped on the floor of the photography page (the rest are reached from the globe). */
+  featured: boolean;
   region?: string;
   country: string;
   lat: number;
@@ -96,7 +105,7 @@ export function getLocations(): Location[] {
       });
 
     const name = meta.name ?? meta.region ?? meta.country;
-    locations.push({ slug, name, region: meta.region, country: meta.country, lat: lat!, lon: lon!, exact, photos });
+    locations.push({ slug, name, place: meta.place ?? name, featured: meta.featured === true, region: meta.region, country: meta.country, lat: lat!, lon: lon!, exact, photos });
   }
   return locations.sort((a, b) => collator.compare(a.name, b.name));
 }

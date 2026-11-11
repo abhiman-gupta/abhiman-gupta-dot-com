@@ -1,100 +1,136 @@
 ---
 /**
- * Photography index: a turning globe with a red marker for each location in photography/locations/.
- * The globe is a WebGL sphere textured with Natural Earth II (public domain, public/textures/earth.jpg);
- * borders and markers are an SVG layer drawn with the same d3 orthographic projection on top.
- * Picking a place opens a drawer with its photos; side banners point to places on the far side of the globe.
+ * The photography index: developed film dropped on the floor.
+ * One strip of film per location in photography/locations/, lying at its own angle and overlapping the others.
+ * Strips can be pushed around; picking one up (a click, or by touch a tap to lift it and a second to open it)
+ * straightens and enlarges it so its frames can be wound through,
+ * and a frame opens in a full-screen viewer.
+ * Only the featured rolls are on the floor ("featured": true in location.json), 6 at most (4 on phones); if none is
+ * featured, a random few are. Every collection is on the globe, and the others' photos load only when needed.
+ * A small globe sits in the lower right corner. Clicking it opens it up: a turning globe (WebGL, textured with Natural
+ * Earth II, public/textures/earth.jpg) with a red marker on each place; clicking a marker puts the globe away and picks up
+ * that place's roll, dropping it onto the floor first if it wasn't there. The globe hides while a roll is picked up.
+ * A held roll counts its frames, winds with the arrow keys and offers the next roll at its end; the viewer runs on into
+ * the next collection too.
+ * Layout comes from :nth-child rules, not inline styles, because the Content-Security-Policy forbids those.
  */
 import { getImage } from "astro:assets";
 import Base from "../../layouts/Base.astro";
 import { getLocations, placeLine } from "../../lib/photos";
 
-/** The location the globe starts on and the Home button returns to. */
-const HOME = "tucson";
+/** On the floor a strip shows every photo in its collection and is never shorter than this many frames; the rest of a short roll is left unexposed. Picked up, it shows only its photos. */
+const MIN_FRAMES = 4;
 
 const locations = await Promise.all(
   getLocations().map(async (l) => ({
     ...l,
     line: placeLine(l),
-    thumbs: await Promise.all(
+    /** Where it was shot, as written under the name on a picked-up roll: city and state (or region), else the country. */
+    // A region-only collection ({ country, region }) has the region as its place too, so it isn't repeated.
+    where: [l.place, l.region && l.region !== l.place ? l.region : l.country !== l.place ? l.country : undefined].filter(Boolean).join(", "),
+    blanks: Math.max(0, MIN_FRAMES - l.photos.length),
+    frames: await Promise.all(
       l.photos.map(async (p) => {
-        const img = await getImage({ src: p.image, widths: [400, 800], format: "webp", quality: 80 });
+        const img = await getImage({ src: p.image, widths: [400, 800, 1600], format: "webp", quality: 80 });
         const full = await getImage({ src: p.image, widths: [1000, 1600, 2400], format: "webp", quality: 85 });
         return { src: img.src, srcset: img.srcSet.attribute, w: p.image.width, h: p.image.height, full: full.src, fullSrcset: full.srcSet.attribute };
       })
     ),
   }))
 );
-const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name, n: l.photos.length, lat: l.lat, lon: l.lon, z: l.exact ? 2.4 : 1.6 })));
-const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ? "photo" : "photos"}`);
+/** The place the globe turns to first. */
+const HOME = "tucson";
+const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name, place: l.place, n: l.photos.length, lat: l.lat, lon: l.lon, z: l.exact ? 2.4 : 1.6 })));
 ---
 <Base title="Photography · Abhiman Gupta" description="Photography by Abhiman Gupta, by place." current="photography">
-  <section class="atlas" id="atlas">
-    <header class="page-head wrap globe-head">
-      <h1 class="page-title">Photo<em>graphy</em></h1>
-    </header>
+  <section class="spill">
+    <h1 class="sr-only">Photography</h1>
 
-    <div class="globe-stage" id="stage">
-      <div class="globe-box" id="box">
-        <canvas id="earth" class="earth" aria-hidden="true"></canvas>
-        <svg id="globe" class="globe" viewBox="0 0 800 800" role="img" aria-label="Globe. Drag to turn it; red markers show where the photographs were taken." data-markers={markers} data-home={HOME}>
-          <defs><clipPath id="lens"><circle cx="400" cy="400" r="361" /></clipPath></defs>
-          <g clip-path="url(#lens)">
-            <path class="fallback-sphere" id="fallbackSphere" />
-            <path class="fallback-land" id="fallbackLand" />
-            <path class="graticule" id="graticule" />
-            <path class="borders" id="borders" />
-            <path class="state-borders" id="stateBorders" />
-            <g id="pins"></g>
-          </g>
-        </svg>
-        <div class="controls">
-          <button id="home" class="home-btn" aria-label="Back to Tucson" title="Back to Tucson"><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M3.5 11 12 4l8.5 7M6 9.2V20h4.5v-5.5h3V20H18V9.2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-          <button id="zoomIn" aria-label="Zoom in">+</button>
-          <button id="zoomOut" aria-label="Zoom out">−</button>
+    <div class="floor" id="floor">
+      {locations.map((l) => (
+        <article class="roll" data-key={l.slug} data-featured={l.featured ? "" : undefined}>
+          {/* Two layers that move as one. The film is see-through and darkens what lies under it; the photos sit in a
+              second layer on top that is ordinary and opaque. The top layer repeats the row so everything lines up. */}
+          <div class="strip base" aria-hidden="true">
+            <div class="film">
+              <div class="frames">
+                <div class="leader"><span class="lname">{l.name}</span><span class="lplace">{l.where}</span></div>
+                {l.frames.map((t) => (
+                  <div class="frame"><img data-src={t.src} data-srcset={t.srcset} width={t.w} height={t.h} sizes="200px" alt="" draggable="false" /></div>
+                ))}
+                {Array.from({ length: l.blanks }, () => <div class="frame blank" />)}
+              </div>
+            </div>
+          </div>
+          <div class="strip top">
+            <div class="film">
+              <div class="frames">
+                <div class="leader" aria-hidden="true"><span class="lname">{l.name}</span><span class="lplace">{l.where}</span></div>
+                {l.frames.map((t, i) => (
+                  <a href={t.full} class="frame shot" data-full={t.full} data-full-srcset={t.fullSrcset} data-i={i} tabindex="-1">
+                    <img data-src={t.src} data-srcset={t.srcset} width={t.w} height={t.h} sizes="200px" alt={`${l.name}, photo ${i + 1}`} draggable="false" />
+                  </a>
+                ))}
+                {Array.from({ length: l.blanks }, () => <div class="frame blank" aria-hidden="true" />)}
+              </div>
+            </div>
+            <button class="pick" aria-label={`${l.name}${l.line ? `, ${l.line}` : ""}. Pick up this roll`}></button>
+          </div>
+        </article>
+      ))}
+
+      {/* Photos are given as data-src: a roll's pictures load only once it is on the floor. */}
+      {/* The globe is drawn at its open size and shrunk with a transform, so opening it is one smooth scale. */}
+      <div class="globe-wrap" id="globeWrap">
+        <div class="globe-box" id="globeBox">
+          <canvas id="earth" class="earth" aria-hidden="true"></canvas>
+          <svg id="globe" class="globe" viewBox="0 0 800 800" role="img" aria-label="Globe. Drag to turn it; red markers show where the photographs were taken." data-markers={markers} data-home={HOME}>
+            <defs>
+              <clipPath id="lens"><circle cx="400" cy="400" r="361" /></clipPath>
+            </defs>
+            <g clip-path="url(#lens)">
+              <path class="fallback-sphere" id="fallbackSphere" />
+              <path class="fallback-land" id="fallbackLand" />
+              <path class="graticule" id="graticule" />
+              <path class="borders" id="borders" />
+              <path class="state-borders" id="stateBorders" />
+              <g id="pins"></g>
+            </g>
+          </svg>
+        </div>
+        <button class="nudge left" id="nudgeL" tabindex="-1" aria-hidden="true"><span class="arrow" aria-hidden="true">←</span><span class="ntext"></span></button>
+        <button class="nudge right" id="nudgeR" tabindex="-1" aria-hidden="true"><span class="ntext"></span><span class="arrow" aria-hidden="true">→</span></button>
+        <button class="globe-open" id="globeOpen" aria-label="Open the globe to see where each roll was shot"><span class="globe-cue label" aria-hidden="true">See more</span></button>
+      </div>
+      <div class="globe-zoom" id="globeZoom" hidden>
+        <button id="zoomIn" aria-label="Zoom in">+</button>
+        <button id="zoomOut" aria-label="Zoom out">−</button>
+      </div>
+      <div class="held-head wrap" id="globeHead" hidden>
+        <button class="close label" id="globeClose">Close ✕</button>
+      </div>
+
+      <div class="held-head split wrap" id="gatherHead" hidden>
+        <p class="label gather-title" id="gatherTitle"></p>
+        <button class="more-rolls" id="gatherUp" hidden><span class="arrow" aria-hidden="true">↑</span><span class="mtext"></span></button>
+        <button class="close label" id="gatherClose">Put back ✕</button>
+      </div>
+      <button class="more-rolls below" id="gatherDown" hidden><span class="mtext"></span><span class="arrow" aria-hidden="true">↓</span></button>
+
+      <div class="held-head split wrap" id="heldHead" hidden>
+        <div>
+          <h2 class="sr-only" id="heldName" tabindex="-1"></h2>
+          <p class="label held-count"><span class="held-title" id="heldTitle"></span><span id="heldCount" aria-live="polite"></span></p>
+        </div>
+        <div class="held-actions">
+          <button class="next-roll" id="nextRoll" hidden><span id="nextName"></span><span class="arrow" aria-hidden="true">→</span></button>
+          <button class="close label" id="heldClose">Put back ✕</button>
         </div>
       </div>
-      <button class="nudge left" id="nudgeL" data-side="left" tabindex="-1" aria-hidden="true"><span class="arrow" aria-hidden="true">←</span><span class="ntext"></span></button>
-      <button class="nudge right" id="nudgeR" data-side="right" tabindex="-1" aria-hidden="true"><span class="ntext"></span><span class="arrow" aria-hidden="true">→</span></button>
       <div class="tip" id="tip" hidden></div>
     </div>
-    <p class="label hint">Drag to turn</p>
   </section>
 
-  <section class="places" aria-label="Places">
-    <p class="label">Places</p>
-    <ul class="place-list">
-      {locations.map((l) => (
-        <li>
-          <button class="place-btn" data-key={l.slug}>
-            <span class="pname">{l.name}</span>
-            <span class="label">{l.line} · {photoCount(l.photos.length)}</span>
-          </button>
-        </li>
-      ))}
-    </ul>
-  </section>
-
-  <aside class="drawer" id="drawer" aria-label="Photos from this place" inert>
-    <button class="close label" id="drawerClose">Close ✕</button>
-    {locations.map((l) => (
-      <div class="place-detail" data-place={l.slug} hidden>
-        <h2 class="place-title" tabindex="-1">{l.name}</h2>
-        {l.line && <p class="label">{l.line}</p>}
-        {l.thumbs.length > 0 ? (
-          <div class="thumbs">
-            {l.thumbs.map((t, i) => (
-              <a href={t.full} class="thumb" data-full={t.full} data-full-srcset={t.fullSrcset} data-i={i}>
-                <img src={t.src} srcset={t.srcset} width={t.w} height={t.h} sizes="(max-width: 700px) 45vw, 190px" alt={`${l.name}, photo ${i + 1}`} loading="lazy" />
-              </a>
-            ))}
-          </div>
-        ) : (
-          <p class="empty">{photoCount(0)}</p>
-        )}
-      </div>
-    ))}
-  </aside>
 
   <div class="viewer" id="viewer" role="dialog" aria-modal="true" aria-label="Photo viewer" hidden>
     <div class="viewer-bar">
@@ -110,53 +146,631 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
 </Base>
 
 <script>
-  import { geoOrthographic, geoPath, geoGraticule10, geoDistance } from "d3-geo";
-  import { feature, mesh } from "topojson-client";
+  import { geoOrthographic, geoPath, geoGraticule10, geoDistance, type GeoPermissibleObjects } from "d3-geo";
   import type { Topology, GeometryCollection } from "topojson-specification";
-  import world from "world-atlas/countries-110m.json";
-  import us from "us-atlas/states-10m.json";
 
-  type Marker = { key: string; name: string; n: number; lat: number; lon: number; z: number };
-  const NS = "http://www.w3.org/2000/svg";
-  const VB = 800;
-  const R = 360;
-  const LENS = R + 1;
-  const svg = document.getElementById("globe") as unknown as SVGSVGElement;
-  const canvas = document.getElementById("earth") as HTMLCanvasElement;
-  const stage = document.getElementById("stage")!;
-  const atlas = document.getElementById("atlas")!;
-  const tip = document.getElementById("tip")!;
+  const el = (id: string) => document.getElementById(id)!;
+  const floor = el("floor");
+  const tip = el("tip");
+  const heldHead = el("heldHead");
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  /** While a roll is held, rolls are gathered or the globe is open, the page goes back to the top and stays there: the
+      page scrolls a little (down to the footer), and scrolled, the Put back row would slide up under the site header. */
+  function settle() {
+    const busy = !!(held || gathered || globeOpen);
+    if (busy && window.scrollY > 0) window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
+    document.documentElement.classList.toggle("floor-busy", busy);
+  }
+
+  /** node: the roll, which carries its position and state. box: its film layer, used for measuring. dx/dy: offset in px from where the stylesheet puts the strip. rot: its angle in degrees. vx/vy/vr: speed per ms while it slides. */
+  type Roll = { node: HTMLElement; box: HTMLElement; pick: HTMLButtonElement; shots: HTMLAnchorElement[]; name: string; dx: number; dy: number; rot: number; vx: number; vy: number; vr: number };
+  const rolls: Roll[] = [...floor.querySelectorAll<HTMLElement>(".roll")].map((node) => ({
+    node,
+    box: node.querySelector<HTMLElement>(".strip.base")!,
+    pick: node.querySelector<HTMLButtonElement>(".pick")!,
+    shots: [...node.querySelectorAll<HTMLAnchorElement>(".shot")],
+    name: node.querySelector(".lname")?.textContent ?? "",
+    dx: 0, dy: 0, rot: 0, vx: 0, vy: 0, vr: 0,
+  }));
+  const byKey = new Map(rolls.map((r) => [r.node.dataset.key!, r]));
+  const rand = (lo: number, hi: number) => lo + Math.random() * (hi - lo);
+  const shuffle = <T,>(list: T[]) => list.map((v) => [Math.random(), v] as const).sort((a, b) => a[0] - b[0]).map(([, v]) => v);
+
+  // ---------- Which rolls are on the floor ----------
+  // Only the featured ones (a random few of them if there are more than fit); with nothing featured, a random few of
+  // them all. The others are hidden until the globe, the next-roll button or the viewer asks for them.
+  const FLOOR_MAX = floor.clientWidth < 700 ? 4 : 6;
+  const featured = rolls.filter((r) => "featured" in r.node.dataset);
+  const onFloor = shuffle(featured.length ? featured : rolls).slice(0, FLOOR_MAX);
+  /** Give a roll its photos (they are left unloaded in the page until the roll is on the floor). */
+  function load(r: Roll) {
+    for (const img of r.node.querySelectorAll<HTMLImageElement>("img[data-src]")) {
+      img.srcset = img.dataset.srcset ?? "";
+      img.src = img.dataset.src!;
+      delete img.dataset.src;
+      delete img.dataset.srcset;
+    }
+  }
+  for (const r of rolls) {
+    if (onFloor.includes(r)) load(r);
+    else { r.node.classList.add("away"); r.pick.tabIndex = -1; }
+  }
+
+  let held: Roll | null = null;
+  let pan = 0;
+  let panMax = 0;
+  let scale = 1;
+  let top = rolls.length;
+  let topRoll: Roll | null = null;
+  const raise = (r: Roll) => { if (r !== topRoll) { topRoll = r; r.node.style.setProperty("--z", String(++top)); } };
+  const place = (r: Roll, x: number, y: number) => { r.node.style.setProperty("--dx", `${x}px`); r.node.style.setProperty("--dy", `${y}px`); };
+  const turn = (r: Roll) => r.node.style.setProperty("--a", `${r.rot.toFixed(2)}deg`);
+  /** Where the strip's middle is on the floor, in px. */
+  const centre = (r: Roll) => ({ x: r.box.offsetLeft + r.dx, y: r.box.offsetTop + r.dy });
+  /** Move a strip's middle to a point, kept on the floor so no roll can be lost off the edge. Returns false if it hit an edge. */
+  function moveTo(r: Roll, x: number, y: number) {
+    const cx = clamp(x, 0, floor.clientWidth), cy = clamp(y, 0, floor.clientHeight);
+    r.dx = cx - r.box.offsetLeft; r.dy = cy - r.box.offsetTop;
+    place(r, r.dx, r.dy);
+    return cx === x && cy === y;
+  }
+
+  // ---------- A fresh spill on every visit ----------
+  // Angles are dealt from evenly spaced slots so no two rolls land parallel; on tall screens they lean towards vertical.
+  // Every roll lands clear of the small globe in the corner: positions are drawn at random until one misses it, first
+  // near the middle and then further out and at a slightly different angle; failing that, the clearest one tried wins.
+  /** Lay a roll on the floor at roughly this angle (degrees, measured for a wide screen), somewhere clear of the globe. */
+  function land(r: Roll, wide: number) {
+    const W = floor.clientWidth, H = floor.clientHeight;
+    const angle = W < H ? Math.sign(wide || 1) * (90 - Math.abs(wide)) : wide;
+    // The small globe sits in the lower right corner; leave room round it for its ripples too.
+    const gBtn = el("globeOpen"), gR = gBtn.offsetWidth / 2 + 36; // with "See more" under it
+    const gX = gBtn.offsetLeft + gBtn.offsetWidth / 2, gY = gBtn.offsetTop + gBtn.offsetHeight / 2;
+    /** How far the globe's edge is from the strip, in px (negative when they overlap). */
+    const clearance = (x: number, y: number, deg: number) => {
+      const c = Math.cos((deg * Math.PI) / 180), s = Math.sin((deg * Math.PI) / 180), gx = gX - x, gy = gY - y;
+      const u = Math.abs(gx * c + gy * s) - r.box.offsetWidth / 2, v = Math.abs(-gx * s + gy * c) - r.box.offsetHeight / 2;
+      return Math.hypot(Math.max(u, 0), Math.max(v, 0)) - gR;
+    };
+    let best = { c: -Infinity, x: W / 2, y: H / 2, a: angle };
+    for (let t = 0; t < 120 && best.c < 0; t++) {
+      const far = t >= 40, a = t >= 80 ? angle + rand(-30, 30) : angle;
+      const x = W * (far ? rand(0.1, 0.9) : rand(0.25, 0.75)), y = H * (far ? rand(0.2, 0.8) : rand(0.3, 0.7));
+      const c = clearance(x, y, a);
+      if (c > best.c) best = { c, x, y, a };
+    }
+    r.rot = best.a;
+    turn(r);
+    r.node.style.setProperty("--spin", `${rand(8, 18) * (Math.random() < 0.5 ? -1 : 1)}deg`);
+    moveTo(r, best.x, best.y);
+  }
+  {
+    const slots = shuffle(onFloor.map((_, i) => i));
+    onFloor.forEach((r, i) => {
+      r.node.classList.add("loose");
+      land(r, -65 + ((slots[i] + rand(0.15, 0.85)) * 130) / onFloor.length);
+    });
+    requestAnimationFrame(() => requestAnimationFrame(() => onFloor.forEach((r) => r.node.classList.remove("loose"))));
+  }
+  /** Bring a roll that isn't on the floor onto it: falling in like the others did, or quietly when it is about to be
+      picked up or gathered anyway. Returns true if it had to come in. */
+  function arrive(r: Roll, fall: boolean) {
+    if (!r.node.classList.contains("away")) return false;
+    r.node.classList.remove("away");
+    r.node.classList.toggle("quiet", !fall);
+    r.node.style.setProperty("--delay", "0s");
+    load(r);
+    r.pick.tabIndex = 0;
+    r.node.classList.add("loose");
+    land(r, rand(-65, 65));
+    requestAnimationFrame(() => requestAnimationFrame(() => r.node.classList.remove("loose")));
+    return true;
+  }
+  /** The roll after (or before) this one, through every collection in A to Z order and round again. */
+  const nextRoll = (r: Roll, step = 1) => rolls[(rolls.indexOf(r) + step + rolls.length) % rolls.length];
+
+  // ---------- Pick up / put back ----------
+  /** Space a held roll leaves above it (header and Put back) and below it, in px. */
+  const TOP_ROOM = 125, BOTTOM_ROOM = 32;
+  /** How far a held roll sits above or below its place in the stylesheet, to centre it in that room. */
+  let lift = 0;
+  /** Size the held strip as large as the screen allows and work out how far it can be wound either way. */
+  function fit(r: Roll, keepPan = false) {
+    // Up to 855 px tall (half as big again as it used to be), but it stays clear of the header and Put back above and the
+    // bottom of the screen, and the name on the leader always fits across the screen, which is what limits it on phones.
+    const W = floor.clientWidth, H = floor.clientHeight;
+    const lead = r.box.querySelector<HTMLElement>(".leader")!.offsetWidth;
+    // The leader starts 0.12 of the film's height in from the strip's end, which opens 24 px from the left edge.
+    const h = r.box.offsetHeight;
+    const want = Math.min(855, W * 0.9, H - TOP_ROOM - BOTTOM_ROOM, ((W - 36) * h) / (lead + h * 0.12));
+    // Centred in the room below Put back, rather than where the stylesheet puts a held roll.
+    lift = (TOP_ROOM + H - BOTTOM_ROOM) / 2 - H * 0.56;
+    scale = want / r.box.offsetHeight;
+    const width = r.box.offsetWidth * scale;
+    panMax = Math.max(0, (width - floor.clientWidth) / 2 + 24);
+    // Every roll opens at its left end, on the name; the frames are wound in from the right.
+    if (!keepPan) pan = panMax;
+    pan = clamp(pan, -panMax, panMax);
+    r.node.style.setProperty("--s", String(scale));
+    place(r, pan, lift);
+  }
+  function hold(r: Roll, focus = true) {
+    if (held === r) return;
+    unprime();
+    if (globeOpen) closeGlobe(false);
+    arrive(r, false);
+    // Picked up from a gathered set, the roll goes back to that set when it is put down.
+    let back: Roll[] | null = null;
+    if (gathered) { back = gathered.includes(r) ? gathered : null; ungather(false); }
+    if (held) drop(false);
+    returnTo = back;
+    held = r;
+    rest(r);
+    raise(r);
+    floor.classList.add("holding");
+    r.node.classList.add("held");
+    fit(r);
+    for (const a of r.shots) { a.tabIndex = 0; a.querySelector("img")!.sizes = "(max-width: 700px) 90vw, 1100px"; }
+    r.pick.tabIndex = -1;
+    el("heldName").textContent = r.name;
+    el("heldTitle").textContent = r.name;
+    heldHead.hidden = false;
+    tip.hidden = true;
+    const after = nextRoll(r);
+    el("nextName").textContent = `Next: ${after.name}`;
+    el("nextRoll").setAttribute("aria-label", `Next roll: ${after.name}`);
+    windUi();
+    settle();
+    if (focus) el("heldName").focus({ preventScroll: true });
+  }
+  /** Wind the held roll to a position, kept within its ends. */
+  function wind(p: number) {
+    if (!held) return;
+    pan = clamp(p, -panMax, panMax);
+    place(held, pan, lift);
+    windUi();
+  }
+  /** Where each frame of the held roll would be centred, as a pan value, and the frame now nearest the middle. */
+  function frameStops(r: Roll) {
+    return r.shots.map((a) => clamp((r.box.offsetWidth / 2 - (a.offsetLeft + a.offsetWidth / 2)) * scale, -panMax, panMax));
+  }
+  /** The frame counter, and whether there is a next roll to offer. */
+  function windUi() {
+    const r = held;
+    if (!r) return;
+    const n = r.shots.length;
+    let at = 0;
+    if (n) {
+      const off = (a: HTMLAnchorElement) => Math.abs(pan + (a.offsetLeft + a.offsetWidth / 2 - r.box.offsetWidth / 2) * scale);
+      r.shots.forEach((a, i) => { if (off(a) < off(r.shots[at])) at = i; });
+    }
+    el("heldCount").textContent = n ? `${at + 1} / ${n}` : "";
+    // Always offered while a roll is open (if there is another roll), so there is always somewhere to go next.
+    el("nextRoll").hidden = rolls.length < 2;
+  }
+  /** Arrow keys on a held roll: on to the next frame, or back to the one before; past the last, the next roll. */
+  function step(dir: 1 | -1) {
+    const r = held;
+    if (!r) return;
+    const stops = frameStops(r);
+    const ahead = dir > 0 ? stops.filter((p) => p < pan - 1) : stops.filter((p) => p > pan + 1).reverse();
+    if (ahead.length) wind(dir > 0 ? Math.max(...ahead) : Math.min(...ahead));
+    else if (dir < 0) wind(panMax);
+    else if (pan > -panMax + 1) wind(-panMax);
+    else if (rolls.length > 1) hold(nextRoll(r));
+  }
+  el("nextRoll").addEventListener("click", () => { if (held) hold(nextRoll(held)); });
+  function drop(refocus = true) {
+    const r = held;
+    if (!r) return;
+    held = null;
+    floor.classList.remove("holding");
+    r.node.classList.remove("held");
+    r.node.style.removeProperty("--s");
+    place(r, r.dx, r.dy);
+    for (const a of r.shots) a.tabIndex = -1;
+    r.pick.tabIndex = 0;
+    heldHead.hidden = true;
+    settle();
+    const back = returnTo;
+    returnTo = null;
+    if (refocus && back?.includes(r)) gather(back, gatherTitle.textContent ?? "", false, true);
+    if (refocus) r.pick.focus({ preventScroll: true });
+  }
+
+  // ---------- Several collections from one place, gathered in the middle ----------
+  // Straightened and stacked one above another, their starts lined up, each big enough that one and a bit fill the
+  // screen; arrows above and below say how many more there are that way and move the stack one roll. A
+  // sideways swipe on a roll winds just that roll; an up-and-down swipe moves through the stack when there are more
+  // than fit, settling on a roll, and rolls pushed out of the top or bottom fade away. Each swipe is locked to the
+  // direction it starts in. The rest of the floor fades back.
+  const gatherHead = el("gatherHead"), gatherTitle = el("gatherTitle");
+  let gathered: Roll[] | null = null;
+  /** The gathered set a held roll was picked up from, to go back to when it is put down. */
+  let returnTo: Roll[] | null = null;
+  /** keep: come back to the stack as it was left (after putting a roll back, or on a resize). */
+  function gather(list: Roll[], title: string, focus = true, keep = false) {
+    returnTo = null;
+    unprime();
+    for (const r of list) arrive(r, false);
+    if (held) drop(false);
+    if (gathered) ungather(false);
+    gathered = list;
+    // The class first: a gathered roll shows its name on the leader, which changes its length.
+    for (const r of list) { rest(r); raise(r); r.node.classList.add("gathered"); }
+    const H = floor.clientHeight, tall = list[0].box.offsetHeight;
+    // Half as big again as two-to-a-screen, but never taller than the room between the header and the foot.
+    // On a short screen (a phone on its side) that would be tiny, so there a roll takes the whole room, up to 200 px.
+    const room = H - 2 * G_ROOM;
+    gScale = Math.min(Math.max(1.5 * Math.min(360, (room - G_GAP) / 2), Math.min(room, 200)), room) / tall;
+    gStep = tall * gScale + G_GAP;
+    for (const r of list) { r.node.style.setProperty("--s", String(gScale)); place(r, 0, 0); }
+    if (!keep) { gTop = 0; gPans.clear(); }
+    layoutGathered();
+    floor.classList.add("gathering");
+    gatherTitle.textContent = title;
+    gatherHead.hidden = false;
+    tip.hidden = true;
+    settle();
+    if (focus) list[0].pick.focus({ preventScroll: true });
+  }
+  /** Room left above and below the gathered stack (for Put back), and the gap between rolls, in px. */
+  const G_ROOM = 120, G_GAP = 20;
+  /** gScale: size of a gathered roll. gStep: distance from one to the next. gTop: how far the stack is moved up (0 or
+      less). gPans: how far each roll is wound sideways (0 or less). */
+  let gScale = 1, gStep = 0, gTop = 0;
+  const gPans = new Map<Roll, number>();
+  /** Place every gathered roll from gTop and gPans, keeping both within their ends. */
+  function layoutGathered() {
+    const list = gathered;
+    if (!list) return;
+    const W = floor.clientWidth, H = floor.clientHeight, tall = gStep - G_GAP;
+    const content = list.length * gStep - G_GAP, room = H - 2 * G_ROOM;
+    // A stack that fits sits in the middle; a taller one starts below Put back and moves up as far as its last roll.
+    gTop = content <= room ? 0 : clamp(gTop, room - content, 0);
+    const first = content <= room ? (H - content) / 2 : G_ROOM + gTop;
+    let above = 0, below = 0;
+    list.forEach((r, i) => {
+      const top = first + i * gStep;
+      if (G_ROOM - top > 2) above++;
+      else if (top + tall - (H - G_ROOM) > 2) below++;
+      r.node.style.setProperty("--y", `${top + tall / 2}px`);
+      const w = r.box.offsetWidth * gScale, across = W - 48;
+      const pan = w <= across ? 0 : clamp(gPans.get(r) ?? 0, across - w, 0);
+      gPans.set(r, pan);
+      r.node.style.setProperty("--x", `${(w <= across ? (W - w) / 2 : 24 + pan) + w / 2}px`);
+      // Fades by how much of it is out of the room above or below.
+      const out = Math.max(0, G_ROOM - top, top + tall - (H - G_ROOM));
+      const fade = clamp(1 - out / tall, 0, 1);
+      r.node.style.setProperty("--gfade", String(fade));
+      r.node.classList.toggle("faded", fade < 0.3); // too faint to aim at
+    });
+    for (const [btn, n, way] of [[gatherUp, above, "above"], [gatherDown, below, "below"]] as const) {
+      btn.hidden = n === 0;
+      if (!n) continue;
+      btn.querySelector(".mtext")!.textContent = `${WORDS[n] ?? n} more`;
+      btn.setAttribute("aria-label", `${n} more ${n === 1 ? "collection" : "collections"} ${way}: show the ${way === "above" ? "one before" : "next one"}`);
+    }
+  }
+  const WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
+  const gatherUp = el("gatherUp"), gatherDown = el("gatherDown");
+  // One roll up or down; the stack stops at its ends by itself.
+  gatherUp.addEventListener("click", () => { gTop = Math.ceil(gTop / gStep + 0.01) * gStep; layoutGathered(); });
+  gatherDown.addEventListener("click", () => { gTop = Math.floor(gTop / gStep - 0.01) * gStep; layoutGathered(); });
+  /** Settle the stack on the nearest roll, or on its far end (last roll against the foot) if that is nearer. */
+  function snapGathered() {
+    const end = Math.min(0, floor.clientHeight - 2 * G_ROOM - ((gathered?.length ?? 0) * gStep - G_GAP));
+    const near = Math.round(gTop / gStep) * gStep;
+    gTop = near < end || Math.abs(gTop - end) < Math.abs(gTop - near) ? end : near;
+    floor.classList.remove("gather-sliding");
+    layoutGathered();
+  }
+  function ungather(refocus = true) {
+    const list = gathered;
+    if (!list) return;
+    gathered = null;
+    floor.classList.remove("gathering");
+    for (const r of list) {
+      r.node.classList.remove("gathered", "faded");
+      for (const v of ["--x", "--y", "--s", "--gfade"]) r.node.style.removeProperty(v);
+      place(r, r.dx, r.dy);
+    }
+    gatherHead.hidden = true;
+    gatherUp.hidden = gatherDown.hidden = true;
+    settle();
+    if (refocus) globeOpenBtn.focus({ preventScroll: true });
+  }
+  el("gatherClose").addEventListener("click", () => ungather());
+  new ResizeObserver(() => {
+    if (held) { fit(held, true); windUi(); }
+    else if (gathered) gather(gathered, gatherTitle.textContent ?? "", false, true);
+    layoutGlobe();
+  }).observe(floor);
+
+  // ---------- Push around on the floor, wind while held ----------
+  // A roll on the floor is held by the point you grabbed, so pushing it off-centre swings it round as well as moving it.
+  // gx/gy is that point measured along and across the strip; t is when the pointer last moved.
+  let drag: { r: Roll; x: number; y: number; moved: number; gx: number; gy: number; t: number } | null = null;
+  /** The roll the last press on the floor chose, and whether that press was a finger or pen and not a mouse. */
+  let pressed: Roll | null = null, byTouch = false;
+  /** The roll a first tap has lifted, waiting for the second tap that picks it up. */
+  let primed: Roll | null = null;
+  function prime(r: Roll, x: number, y: number) {
+    unprime();
+    primed = r;
+    r.node.classList.add("primed");
+    raise(r);
+    tip.textContent = `${r.name} · Tap to open`;
+    tip.hidden = false;
+    // Above the finger, and kept on the floor.
+    const box = floor.getBoundingClientRect();
+    const tx = clamp(x - box.left - tip.offsetWidth / 2, 8, floor.clientWidth - tip.offsetWidth - 8);
+    tip.style.transform = `translate(${tx}px, ${Math.max(8, y - box.top - 64)}px)`;
+  }
+  function unprime() {
+    if (!primed) return;
+    primed.node.classList.remove("primed");
+    primed = null;
+    tip.hidden = true;
+  }
+  let dragged = false;
+  const RAD = Math.PI / 180;
+  const SLIDE_MS = 170; // how long a released roll takes to lose most of its speed
+  const sliding = new Set<Roll>();
+  let slideT = 0;
+  function slide(now: number) {
+    const dt = Math.min(40, now - slideT);
+    slideT = now;
+    const keep = Math.exp(-dt / SLIDE_MS);
+    for (const r of sliding) {
+      const c = centre(r);
+      if (!moveTo(r, c.x + r.vx * dt, c.y + r.vy * dt)) { r.vx = 0; r.vy = 0; }
+      r.rot += r.vr * dt;
+      turn(r);
+      r.vx *= keep; r.vy *= keep; r.vr *= keep;
+      if (Math.hypot(r.vx, r.vy) < 0.02 && Math.abs(r.vr) < 0.004) rest(r);
+    }
+    if (sliding.size) requestAnimationFrame(slide);
+  }
+  function rest(r: Roll) {
+    r.vx = r.vy = r.vr = 0;
+    if (sliding.delete(r)) r.node.classList.remove("loose");
+  }
+  for (const r of rolls) {
+    r.node.addEventListener("pointerdown", (e) => {
+      // Gathered rolls are dragged (or swiped) sideways as a set, and a tap opens one.
+      // A tap on a gathered roll opens it straight away, so a touch on the floor earlier mustn't make it wait for a second tap.
+      if (gathered) { dragged = false; pressed = null; byTouch = false; if (e.button === 0) gDrag = { r, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, axis: null, moved: 0 }; return; }
+      if (e.button !== 0 || (held && held !== r)) return;
+      // A finger has no hover to bring the photo it is aiming at to the top first, so the press itself picks the roll
+      // the same way: the photo under it wins, even through another roll's film.
+      const t = !held && e.pointerType !== "mouse" ? aimed(e.clientX, e.clientY) ?? r : r;
+      pressed = t;
+      byTouch = e.pointerType !== "mouse";
+      rest(t);
+      const box = floor.getBoundingClientRect(), c = centre(t);
+      const ox = e.clientX - box.left - c.x, oy = e.clientY - box.top - c.y;
+      const cos = Math.cos(t.rot * RAD), sin = Math.sin(t.rot * RAD);
+      drag = { r: t, x: e.clientX, y: e.clientY, moved: 0, gx: ox * cos + oy * sin, gy: -ox * sin + oy * cos, t: performance.now() };
+      dragged = false;
+      if (!held) raise(t);
+    });
+    // A click that ends a drag is not a pick-up; reset afterwards so the next click (or Enter key) is.
+    // A pointer's click picks up the roll its press chose; the keyboard's (detail 0) the roll that has focus.
+    // By touch the first tap only lifts the roll and names it, standing in for the hover a finger doesn't have; a
+    // second tap on the same roll picks it up.
+    r.pick.addEventListener("click", (e) => {
+      const t = (e.detail && pressed) || r;
+      if (!dragged) {
+        if (e.detail && byTouch && primed !== t) prime(t, e.clientX, e.clientY);
+        else hold(t);
+      }
+      dragged = false; pressed = null;
+    });
+    // Tabbing to a gathered roll brings it to the top of the stack.
+    r.pick.addEventListener("focus", () => {
+      if (!gathered) return;
+      gTop = -gathered.indexOf(r) * gStep;
+      layoutGathered();
+    });
+    for (const a of r.shots) {
+      a.addEventListener("click", (e) => { e.preventDefault(); if (!dragged && held === r) openViewer(r, a); });
+      a.addEventListener("focus", () => {
+        if (held !== r) return;
+        wind((r.box.offsetWidth / 2 - (a.offsetLeft + a.offsetWidth / 2)) * scale);
+      });
+    }
+  }
+  // Pointing brings a roll to the top of the pile before any click. A photo under the pointer wins, even when another
+  // roll's film is lying over it: people aim at pictures, not at film edges. With no photo there, it is whichever roll
+  // is already uppermost at that spot; with two photos there, the upper one.
+  const byNode = new Map(rolls.map((r) => [r.node, r]));
+  function aimed(x: number, y: number) {
+    const under = document.elementsFromPoint(x, y);
+    const hit = under.find((n) => n.closest(".shot")) ?? under.find((n) => n.closest(".roll"));
+    return hit ? byNode.get(hit.closest<HTMLElement>(".roll")!) : undefined;
+  }
+  floor.addEventListener("pointermove", (e) => {
+    if (held || drag || globeOpen || gathered || e.pointerType !== "mouse") return;
+    const r = aimed(e.clientX, e.clientY);
+    if (!r) { tip.hidden = true; return; }
+    raise(r);
+    tip.textContent = r.name;
+    const box = floor.getBoundingClientRect();
+    tip.style.transform = `translate(${e.clientX - box.left + 14}px, ${e.clientY - box.top + 14}px)`;
+    tip.hidden = false;
+  });
+  floor.addEventListener("pointerleave", () => { tip.hidden = true; });
+  /** A swipe on a gathered roll: which roll, where the pointer was and started, and the direction it locked to. */
+  let gDrag: { r: Roll; x: number; y: number; sx: number; sy: number; axis: "x" | "y" | null; moved: number } | null = null;
+  window.addEventListener("pointermove", (e) => {
+    if (gDrag && gathered) {
+      const dx = e.clientX - gDrag.x, dy = e.clientY - gDrag.y;
+      gDrag.x = e.clientX; gDrag.y = e.clientY;
+      gDrag.moved += Math.abs(dx) + Math.abs(dy);
+      if (gDrag.moved < 6) return;
+      gDrag.axis ??= Math.abs(e.clientX - gDrag.sx) > Math.abs(e.clientY - gDrag.sy) ? "x" : "y";
+      floor.classList.add("gather-sliding");
+      if (gDrag.axis === "x") gPans.set(gDrag.r, (gPans.get(gDrag.r) ?? 0) + dx);
+      else gTop += dy;
+      layoutGathered();
+      return;
+    }
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    drag.x = e.clientX; drag.y = e.clientY;
+    drag.moved += Math.abs(dx) + Math.abs(dy);
+    if (drag.moved < 5) return;
+    const r = drag.r;
+    r.node.classList.add("dragging");
+    unprime();
+    tip.hidden = true;
+    if (held === r) { wind(pan + dx); return; }
+    // The grabbed point stays under the pointer. Sideways movement there turns the strip, less so the nearer the
+    // grab is to the middle (the added term is the strip's reluctance to spin).
+    const now = performance.now(), dt = Math.max(1, now - drag.t);
+    drag.t = now;
+    const before = centre(r);
+    let cos = Math.cos(r.rot * RAD), sin = Math.sin(r.rot * RAD);
+    const ax = drag.gx * cos - drag.gy * sin, ay = drag.gx * sin + drag.gy * cos;
+    const dRot = (ax * dy - ay * dx) / (ax * ax + ay * ay + (r.box.offsetWidth * 0.3) ** 2) / RAD;
+    r.rot += dRot;
+    turn(r);
+    cos = Math.cos(r.rot * RAD); sin = Math.sin(r.rot * RAD);
+    const box = floor.getBoundingClientRect();
+    moveTo(r, e.clientX - box.left - (drag.gx * cos - drag.gy * sin), e.clientY - box.top - (drag.gx * sin + drag.gy * cos));
+    const after = centre(r);
+    // Running average of speed, so the throw follows the last stretch of the push and not one jittery sample.
+    r.vx += ((after.x - before.x) / dt - r.vx) * 0.4;
+    r.vy += ((after.y - before.y) / dt - r.vy) * 0.4;
+    r.vr += (dRot / dt - r.vr) * 0.4;
+  });
+  // Every press starts clean: a swipe on a touch screen ends with no click to clear the flag.
+  window.addEventListener("pointerdown", () => { dragged = false; }, true);
+  const endDrag = () => {
+    if (gDrag) { dragged = gDrag.moved >= 6; gDrag = null; snapGathered(); }
+    if (!drag) return;
+    dragged = drag.moved >= 5;
+    const r = drag.r, still = performance.now() - drag.t > 80;
+    r.node.classList.remove("dragging");
+    drag = null;
+    // Let go while moving and the roll slides on and settles; let go after a pause and it stays put.
+    if (held === r || !dragged || still || reduced) { r.vx = r.vy = r.vr = 0; return; }
+    r.node.classList.add("loose");
+    sliding.add(r);
+    if (sliding.size === 1) { slideT = performance.now(); requestAnimationFrame(slide); }
+  };
+  window.addEventListener("pointerup", endDrag);
+  window.addEventListener("pointercancel", endDrag);
+
+  let wheelSettle = 0;
+  floor.addEventListener("wheel", (e) => {
+    if (gathered) {
+      // Sideways scrolling winds the roll under the pointer; up and down moves through the stack, settling once it stops.
+      e.preventDefault();
+      floor.classList.add("gather-sliding");
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        const r = byNode.get((e.target as HTMLElement).closest<HTMLElement>(".roll")!);
+        if (r && gathered.includes(r)) gPans.set(r, (gPans.get(r) ?? 0) - e.deltaX);
+      } else gTop -= e.deltaY;
+      layoutGathered();
+      clearTimeout(wheelSettle);
+      wheelSettle = window.setTimeout(snapGathered, 160);
+      return;
+    }
+    if (!held || panMax === 0) return;
+    e.preventDefault();
+    held.node.classList.add("dragging");
+    wind(pan - (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY));
+    held.node.classList.remove("dragging");
+  }, { passive: false });
+
+  // A click on the bare floor puts the roll back.
+  floor.addEventListener("click", (e) => {
+    const t = e.target as HTMLElement;
+    if (!t.closest(".roll")) unprime();
+    if (held && !dragged && !t.closest(".roll, .held-head, .globe-wrap")) drop();
+    else if (globeOpen && !t.closest(".globe-wrap, .held-head, .globe-zoom")) closeGlobe();
+    else if (gathered && !dragged && !t.closest(".roll, .held-head, .globe-wrap, .more-rolls")) ungather();
+  });
+  el("heldClose").addEventListener("click", () => drop());
+  document.addEventListener("keydown", (e) => {
+    if (!viewer.hidden) return;
+    if (held && (e.key === "ArrowRight" || e.key === "ArrowLeft")) { e.preventDefault(); step(e.key === "ArrowRight" ? 1 : -1); return; }
+    if (e.key !== "Escape") return;
+    if (held) drop();
+    else if (gathered) ungather();
+    else if (globeOpen) closeGlobe();
+  });
+
+  // ---------- The globe ----------
+  // Small, it sits in the middle of the floor turning slowly. Opened, it fills the floor and can be dragged and zoomed;
+  // each place has a red marker. Clicking one puts the globe away and picks up that roll or, where several collections
+  // were shot in one place, gathers them in the middle of the floor to choose from.
+  type Marker = { key: string; name: string; place: string; n: number; lat: number; lon: number; z: number };
+  /** One marker on the globe: the collections shot within GROUP_KM of each other. key is its first collection's. */
+  type Spot = { key: string; place: string; label: string; keys: string[]; n: number; lat: number; lon: number };
+  const NS = "http://www.w3.org/2000/svg";
+  const VB = 800, R = 360, LENS = R + 1;
+  const globeWrap = el("globeWrap"), globeBox = el("globeBox"), globeOpenBtn = el("globeOpen") as HTMLButtonElement;
+  const svg = el("globe") as unknown as SVGSVGElement;
+  const canvas = el("earth") as HTMLCanvasElement;
   const markers: Marker[] = JSON.parse(svg.dataset.markers ?? "[]");
-  const byKey = new Map(markers.map((m) => [m.key, m]));
-  const home = byKey.get(svg.dataset.home ?? "") ?? markers[0];
+  const GROUP_KM = 25;
+  const spots: Spot[] = [];
+  for (const m of markers) {
+    const s = spots.find((s) => geoDistance([s.lon, s.lat], [m.lon, m.lat]) * 6371 < GROUP_KM);
+    if (s) { s.keys.push(m.key); s.n += m.n; }
+    else spots.push({ key: m.key, place: m.place, label: m.place, keys: [m.key], n: m.n, lat: m.lat, lon: m.lon });
+  }
+  for (const s of spots) {
+    // A lone collection is called by its own title; a shared spot by the place and how many collections are there.
+    if (s.keys.length === 1) s.label = markers.find((m) => m.key === s.key)!.name;
+    else s.label = `${s.label} · ${s.keys.length} collections`;
+  }
+  const spotByKey = new Map(spots.map((s) => [s.key, s]));
+  const homeMarker = spots.find((s) => s.keys.includes(svg.dataset.home ?? "")) ?? spots[0];
 
-  const wt = world as unknown as Topology<{ countries: GeometryCollection; land: GeometryCollection }>;
-  const ut = us as unknown as Topology<{ states: GeometryCollection }>;
-  const borders = mesh(wt, wt.objects.countries, (a, b) => a !== b);
-  const stateBorders = mesh(ut, ut.objects.states, (a, b) => a !== b);
-  const land = feature(wt, wt.objects.land);
-
+  // Borders (and the flat map used without WebGL) come from about 220 KB of map data, fetched only once someone points
+  // at the globe, focuses it or opens it. Until then the small globe is just the textured sphere.
+  let borders: GeoPermissibleObjects | null = null, stateBorders: GeoPermissibleObjects | null = null, landShape: GeoPermissibleObjects | null = null;
+  let mapData: Promise<void> | null = null;
+  function loadMap() {
+    mapData ??= Promise.all([import("topojson-client"), import("world-atlas/countries-110m.json"), import("us-atlas/states-10m.json")])
+      .then(([{ feature, mesh }, world, us]) => {
+        const wt = world.default as unknown as Topology<{ countries: GeometryCollection; land: GeometryCollection }>;
+        const ut = us.default as unknown as Topology<{ states: GeometryCollection }>;
+        borders = mesh(wt, wt.objects.countries, (a, b) => a !== b);
+        stateBorders = mesh(ut, ut.objects.states, (a, b) => a !== b);
+        landShape = feature(wt, wt.objects.land);
+        dirty = true;
+      })
+      .catch((err) => { mapData = null; console.warn("Globe: map data didn't load.", err); });
+    loadTexture(FULL_TEXTURE);
+    return mapData;
+  }
   const projection = geoOrthographic().translate([VB / 2, VB / 2]).scale(R).clipAngle(90).precision(0.4);
   const path = geoPath(projection);
   const graticule = geoGraticule10();
-  const el = (id: string) => document.getElementById(id)!;
   const wrap180 = (d: number) => ((((d + 180) % 360) + 360) % 360) - 180;
 
-  const pins = markers.map((m) => {
+  // A shared spot gets a bigger marker with the number of collections written on it.
+  const pins = spots.map((m) => {
     const g = document.createElementNS(NS, "g");
-    g.setAttribute("class", m.n ? "pin" : "pin empty");
-    g.dataset.key = m.key;
-    g.innerHTML = `<circle class="pulse" r="10"/><circle class="dot" r="5.5"/>`;
+    const many = m.keys.length > 1;
+    g.setAttribute("class", `pin${m.n ? "" : " empty"}${many ? " many" : ""}`);
+    g.innerHTML = many
+      ? `<circle class="pulse" r="14"/><circle class="dot" r="10"/><text class="count" dy="0.36em">${m.keys.length}</text>`
+      : `<circle class="pulse" r="10"/><circle class="dot" r="5.5"/>`;
     el("pins").appendChild(g);
     return { g, m, at: [m.lon, m.lat] as [number, number], visible: false };
   });
 
-  // ---------- WebGL terrain ----------
+  // WebGL terrain, the same shader the globe page used.
   const gl = canvas.getContext("webgl2", { premultipliedAlpha: true, antialias: false });
   let glReady = false;
   let uSize: WebGLUniformLocation | null, uRadius: WebGLUniformLocation | null, uCenter: WebGLUniformLocation | null;
-
   function initGL(g: WebGL2RenderingContext) {
     const vs = `#version 300 es
       in vec2 p; void main() { gl_Position = vec4(p, 0.0, 1.0); }`;
@@ -166,7 +780,7 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
       out vec4 o;
       const float PI = 3.14159265;
       void main() {
-        float px = ${VB.toFixed(1)} / size.x;                  // one device pixel in viewBox units
+        float px = ${VB.toFixed(1)} / size.x;
         vec2 d = vec2(gl_FragCoord.x, size.y - gl_FragCoord.y) * px - ${(VB / 2).toFixed(1)};
         float lens = clamp((${(LENS - 0.5).toFixed(1)} - length(d)) / px, 0.0, 1.0);
         vec2 q = vec2(d.x, -d.y) / radius;
@@ -178,7 +792,6 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
         float lon = center.x + atan(q.x, z * cos(center.y) - q.y * sin(center.y));
         float u = lon / (2.0 * PI) + 0.5;
         float v = 0.5 - lat / PI;
-        // Pick whichever wrap of u is continuous here, so mipmapping leaves no seam at the date line.
         float u1 = fract(u), u2 = fract(u + 0.5) - 0.5;
         float uu = fwidth(u1) <= fwidth(u2) + 1e-6 ? u1 : u2;
         vec3 c = texture(tex, vec2(uu, v)).rgb;
@@ -201,8 +814,7 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
     g.linkProgram(prog);
     if (!g.getProgramParameter(prog, g.LINK_STATUS)) throw new Error(g.getProgramInfoLog(prog) ?? "link");
     g.useProgram(prog);
-    const buf = g.createBuffer();
-    g.bindBuffer(g.ARRAY_BUFFER, buf);
+    g.bindBuffer(g.ARRAY_BUFFER, g.createBuffer());
     g.bufferData(g.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), g.STATIC_DRAW);
     const loc = g.getAttribLocation(prog, "p");
     g.enableVertexAttribArray(loc);
@@ -210,12 +822,22 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
     uSize = g.getUniformLocation(prog, "size");
     uRadius = g.getUniformLocation(prog, "radius");
     uCenter = g.getUniformLocation(prog, "center");
-
+    loadTexture(SMALL_TEXTURE);
+  }
+  // The small globe needs only a light texture; the full 2 MB one comes with the map data, when someone reaches for it.
+  const SMALL_TEXTURE = "/textures/earth-small.jpg", FULL_TEXTURE = "/textures/earth.jpg";
+  let textureWanted = "";
+  let fullTexture = false;
+  function loadTexture(url: string) {
+    const g = gl;
+    if (!g || !uSize || fullTexture || textureWanted === url) return;
+    textureWanted = url;
     const img = new Image();
     img.decoding = "async";
     img.onload = () => {
-      const t = g.createTexture();
-      g.bindTexture(g.TEXTURE_2D, t);
+      if (fullTexture) return; // the full one arrived first; keep it
+      if (url === FULL_TEXTURE) fullTexture = true;
+      g.bindTexture(g.TEXTURE_2D, g.createTexture());
       g.texImage2D(g.TEXTURE_2D, 0, g.RGB, g.RGB, g.UNSIGNED_BYTE, img);
       g.generateMipmap(g.TEXTURE_2D);
       g.texParameteri(g.TEXTURE_2D, g.TEXTURE_MIN_FILTER, g.LINEAR_MIPMAP_LINEAR);
@@ -228,29 +850,52 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
       svg.classList.add("gl");
       dirty = true;
     };
-    img.src = "/textures/earth.jpg";
+    img.src = url;
   }
   if (gl) {
     try { initGL(gl); } catch (err) { console.warn("Globe: WebGL unavailable, using flat map.", err); }
   }
+  // Without WebGL the land itself is drawn from the map data, so it is needed straight away.
+  if (!uSize) loadMap();
 
+  let globeOpen = false;
+  /** Where the globe faces each time it is opened: the middle of the United States (longitude, latitude). */
+  const OPEN_AT: [number, number] = [-98, 38];
+  let rot: [number, number] = homeMarker ? [-homeMarker.lon, -homeMarker.lat] : [100, -28];
+  let zoom = 1, vel = 0, dirty = true, lastInteract = 0, dragging = false;
+  let hovered: string | null = null;
+  let fly: { from: [number, number, number]; to: [number, number, number]; t0: number; dur: number } | null = null;
+  let smallPx = 100, bigPx = 600;
+
+  /** The globe box is always laid out at its open size, centred; closed, a transform shrinks it and moves it onto the
+      button in the lower right corner, so opening it is one move to the middle. */
+  function layoutGlobe() {
+    // Short screens (a phone on its side) give the open globe more of the height.
+    const H = floor.clientHeight;
+    bigPx = Math.max(smallPx, Math.min(floor.clientWidth - 32, H - 2 * (H < 520 ? 64 : 96), 820));
+    globeBox.style.width = `${bigPx}px`;
+    globeWrap.style.setProperty("--big", `${bigPx}px`);
+    seatGlobe();
+    // The arrows sit beside the globe when there is room for them, otherwise under it.
+    globeWrap.classList.toggle("nudge-below", (floor.clientWidth - bigPx) / 2 < 210);
+    sizeCanvas();
+  }
+  /** Where the small globe sits: on its button. The button is hidden while the globe is open and can't be measured
+      then, so a resize with the globe open keeps the old seat and closeGlobe measures again. */
+  function seatGlobe() {
+    if (globeOpenBtn.offsetWidth) {
+      smallPx = globeOpenBtn.offsetWidth;
+      globeWrap.style.setProperty("--cx", `${globeOpenBtn.offsetLeft + smallPx / 2 - floor.clientWidth / 2}px`);
+      globeWrap.style.setProperty("--cy", `${globeOpenBtn.offsetTop + smallPx / 2 - floor.clientHeight / 2}px`);
+    }
+    globeWrap.style.setProperty("--k", String(smallPx / bigPx));
+  }
+  /** Only an open globe is drawn at full resolution; the small one is a fraction of the pixels. */
   function sizeCanvas() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const w = Math.round(canvas.clientWidth * dpr);
+    const w = Math.round((globeOpen ? bigPx : smallPx) * dpr);
     if (w > 0 && canvas.width !== w) { canvas.width = w; canvas.height = w; dirty = true; }
   }
-  new ResizeObserver(sizeCanvas).observe(canvas);
-
-  // ---------- State & render ----------
-  let rot: [number, number] = home ? [-home.lon, -home.lat] : [100, -28];
-  let zoom = 1;
-  let vel = 0;
-  let dirty = true;
-  let selected: string | null = null;
-  let hovered: string | null = null;
-  let lastInteract = 0;
-  let dragging = false;
-  let fly: { from: [number, number, number]; to: [number, number, number]; t0: number; dur: number } | null = null;
 
   function render() {
     projection.rotate([rot[0], rot[1]]).scale(R * zoom);
@@ -264,43 +909,30 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     } else {
       el("fallbackSphere").setAttribute("d", path({ type: "Sphere" }) ?? "");
-      el("fallbackLand").setAttribute("d", path(land) ?? "");
+      el("fallbackLand").setAttribute("d", landShape ? path(landShape) ?? "" : "");
     }
     el("graticule").setAttribute("d", path(graticule) ?? "");
-    el("borders").setAttribute("d", path(borders) ?? "");
-    el("stateBorders").setAttribute("d", path(stateBorders) ?? "");
+    el("borders").setAttribute("d", borders ? path(borders) ?? "" : "");
+    el("stateBorders").setAttribute("d", stateBorders ? path(stateBorders) ?? "" : "");
     const center: [number, number] = [-rot[0], -rot[1]];
     for (const p of pins) {
       const xy = projection(p.at);
       p.visible = !!xy && geoDistance(p.at, center) < Math.PI / 2 - 0.03 && Math.hypot(xy[0] - VB / 2, xy[1] - VB / 2) < LENS - 4;
       p.g.classList.toggle("hidden", !p.visible);
-      if (xy) p.g.setAttribute("transform", `translate(${xy[0].toFixed(1)} ${xy[1].toFixed(1)})`);
+      if (xy) { p.g.setAttribute("transform", `translate(${xy[0].toFixed(1)} ${xy[1].toFixed(1)})`); }
     }
     updateNudges();
     dirty = false;
   }
 
-  // ---------- Side banners: how many places are out of view on each side ----------
-  const WORDS = ["Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"];
+  // Arrows saying how many collections are round the back of the globe on each side; clicking one turns the globe to
+  // the nearest of them. They stay up for as long as anything is out of view, so nobody misses that it turns.
   const nudges = {
-    left: { btn: el("nudgeL") as HTMLButtonElement, text: el("nudgeL").querySelector(".ntext")!, key: "", targets: [] as Marker[], timer: 0, held: false },
-    right: { btn: el("nudgeR") as HTMLButtonElement, text: el("nudgeR").querySelector(".ntext")!, key: "", targets: [] as Marker[], timer: 0, held: false },
+    left: { btn: el("nudgeL") as HTMLButtonElement, key: "-", targets: [] as Spot[] },
+    right: { btn: el("nudgeR") as HTMLButtonElement, key: "-", targets: [] as Spot[] },
   };
-  type Nudge = (typeof nudges)["left"];
-  const NUDGE_MS = 3000;
-  function setNudge(n: Nudge, on: boolean) {
-    n.btn.classList.toggle("show", on);
-    n.btn.tabIndex = on ? 0 : -1;
-    n.btn.setAttribute("aria-hidden", on ? "false" : "true");
-  }
-  /** Show a banner, then fade it out after 3 s unless the pointer or keyboard focus is on it. */
-  function flashNudge(n: Nudge, ms = NUDGE_MS) {
-    setNudge(n, true);
-    clearTimeout(n.timer);
-    n.timer = window.setTimeout(() => { if (!n.held) setNudge(n, false); }, ms);
-  }
   function updateNudges() {
-    const left: { m: Marker; d: number }[] = [], right: { m: Marker; d: number }[] = [];
+    const left: { m: Spot; d: number }[] = [], right: { m: Spot; d: number }[] = [];
     for (const p of pins) {
       if (p.visible) continue;
       const d = wrap180(p.m.lon + rot[0]); // + means east of the view centre, i.e. round to the right
@@ -308,201 +940,103 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
     }
     for (const [side, list] of [["left", left], ["right", right]] as const) {
       const n = nudges[side];
-      const sorted = list.sort((a, b) => a.d - b.d).map((x) => x.m);
-      const key = sorted.map((m) => m.key).join(",");
-      n.targets = sorted;
+      n.targets = list.sort((a, b) => a.d - b.d).map((x) => x.m);
+      const key = n.targets.map((m) => m.key).join(",");
       if (key === n.key) continue;
       n.key = key;
-      const count = sorted.length;
-      if (count === 0) { clearTimeout(n.timer); setNudge(n, false); }
-      else {
-        flashNudge(n);
-        const word = WORDS[count] ?? String(count);
-        n.text.textContent = `${word} more`;
-        n.btn.setAttribute("aria-label", `Turn the globe ${side}: ${count} more ${count === 1 ? "place" : "places"} with photos that way`);
+      const count = n.targets.reduce((sum, t) => sum + t.keys.length, 0), on = count > 0 && globeOpen;
+      n.btn.classList.toggle("show", count > 0);
+      n.btn.tabIndex = on ? 0 : -1;
+      n.btn.setAttribute("aria-hidden", on ? "false" : "true");
+      if (count) {
+        n.btn.querySelector(".ntext")!.textContent = `${WORDS[count] ?? count} more ${count === 1 ? "collection" : "collections"}`;
+        n.btn.setAttribute("aria-label", `Turn the globe ${side}: ${count} more ${count === 1 ? "collection" : "collections"} that way`);
       }
     }
   }
-  for (const side of ["left", "right"] as const) {
-    const n = nudges[side];
+  for (const n of Object.values(nudges)) {
     n.btn.addEventListener("click", () => {
       const m = n.targets[0];
-      if (m) flyTo(m, Math.min(zoom, 1.4));
+      if (!m) return;
+      fly = { from: [rot[0], rot[1], zoom], to: [rot[0] + wrap180(-m.lon - rot[0]), -m.lat, Math.min(zoom, 1.4)], t0: performance.now(), dur: reduced ? 1 : 1200 };
+      lastInteract = performance.now();
     });
-    const hold = () => { n.held = true; clearTimeout(n.timer); };
-    const release = () => { n.held = false; if (n.btn.classList.contains("show")) flashNudge(n, 1200); };
-    n.btn.addEventListener("pointerenter", hold);
-    n.btn.addEventListener("pointerleave", release);
-    n.btn.addEventListener("focus", hold);
-    n.btn.addEventListener("blur", release);
   }
-
-  function setClasses() {
-    for (const p of pins) {
-      p.g.classList.toggle("hot", p.m.key === hovered);
-      p.g.classList.toggle("sel", p.m.key === selected);
-    }
-  }
-
   const ease = (t: number) => 1 - Math.pow(1 - t, 3);
   function tick(now: number) {
     if (fly) {
-      const t = Math.min(1, (now - fly.t0) / fly.dur);
-      const e = ease(t);
+      const t = Math.min(1, (now - fly.t0) / fly.dur), e = ease(t);
       rot = [fly.from[0] + (fly.to[0] - fly.from[0]) * e, fly.from[1] + (fly.to[1] - fly.from[1]) * e];
       zoom = fly.from[2] + (fly.to[2] - fly.from[2]) * e;
       dirty = true;
       if (t === 1) { fly = null; lastInteract = now; }
     } else if (!dragging) {
       if (Math.abs(vel) > 0.01) { rot[0] += vel; vel *= 0.94; dirty = true; }
-      else if (!reduced && !selected && now - lastInteract > 4000) { rot[0] += 0.08; dirty = true; }
+      else if (!reduced && !hovered && (!globeOpen || now - lastInteract > 4000)) { rot[0] += globeOpen ? 0.08 : 0.15; dirty = true; }
     }
     if (dirty) render();
     requestAnimationFrame(tick);
   }
 
-  function flyTo(m: Marker, z: number) {
-    const target = rot[0] + wrap180(-m.lon - rot[0]);
-    fly = { from: [rot[0], rot[1], zoom], to: [target, -m.lat, z], t0: performance.now(), dur: reduced ? 1 : 1200 };
+  function openGlobe() {
+    if (globeOpen) return;
+    unprime();
+    loadMap();
+    returnTo = null;
+    if (held) drop(false);
+    if (gathered) ungather(false);
+    globeOpen = true;
+    sizeCanvas();
+    nudges.left.key = nudges.right.key = "-";
+    render();
+    floor.classList.add("globing");
+    globeWrap.classList.add("open", "seen");
+    globeOpenBtn.tabIndex = -1;
+    el("globeHead").hidden = false;
+    el("globeZoom").hidden = false;
+    tip.hidden = true;
     lastInteract = performance.now();
+    // The small globe keeps turning, so it could open facing anywhere: it always turns to the United States as it opens.
+    fly = { from: [rot[0], rot[1], zoom], to: [rot[0] + wrap180(-OPEN_AT[0] - rot[0]), -OPEN_AT[1], 1], t0: performance.now(), dur: reduced ? 1 : 900 };
+    settle();
+    el("globeClose").focus({ preventScroll: true });
   }
-
-  // ---------- Drawer ----------
-  const drawer = el("drawer");
-  const details = document.querySelectorAll<HTMLElement>(".place-detail");
-  function select(key: string | null) {
-    selected = key;
-    const m = key ? byKey.get(key) : undefined;
-    details.forEach((d) => (d.hidden = d.dataset.place !== key));
-    drawer.classList.toggle("open", !!m);
-    atlas.classList.toggle("drawer-open", !!m);
-    if (m) { drawer.removeAttribute("inert"); drawer.querySelector<HTMLElement>(`[data-place="${m.key}"] .place-title`)?.focus({ preventScroll: true }); flyTo(m, m.z); }
-    else { drawer.setAttribute("inert", ""); fly = { from: [rot[0], rot[1], zoom], to: [rot[0], rot[1], 1], t0: performance.now(), dur: reduced ? 1 : 700 }; }
-    setClasses();
-    lastInteract = performance.now();
+  function closeGlobe(refocus = true) {
+    if (!globeOpen) return;
+    globeOpen = false;
+    hovered = null;
+    for (const n of Object.values(nudges)) { n.btn.tabIndex = -1; n.btn.setAttribute("aria-hidden", "true"); n.key = "-"; }
+    floor.classList.remove("globing");
+    globeWrap.classList.remove("open");
+    seatGlobe();
+    globeOpenBtn.tabIndex = 0;
+    el("globeHead").hidden = true;
+    el("globeZoom").hidden = true;
+    tip.hidden = true;
+    fly = { from: [rot[0], rot[1], zoom], to: [rot[0], rot[1], 1], t0: performance.now(), dur: reduced ? 1 : 700 };
+    settle();
+    // Drop to the small resolution once the shrinking is over.
+    window.setTimeout(() => { if (!globeOpen) sizeCanvas(); }, 750);
+    if (refocus) globeOpenBtn.focus({ preventScroll: true });
   }
-  document.querySelectorAll<HTMLButtonElement>(".place-btn").forEach((b) => b.addEventListener("click", () => {
-    select(b.dataset.key!);
-    window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
-  }));
-  el("drawerClose").addEventListener("click", () => select(null));
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && selected && viewer.hidden) select(null); });
-
-  // ---------- Photo viewer ----------
-  const viewer = el("viewer");
-  const viewerImg = el("viewerImg") as HTMLImageElement;
-  let shots: HTMLAnchorElement[] = [];
-  let shot = 0;
-  let opener: HTMLElement | null = null;
-  function showShot(i: number) {
-    shot = (i + shots.length) % shots.length;
-    const a = shots[shot];
-    viewerImg.classList.add("swap");
-    const img = a.querySelector("img")!;
-    viewerImg.srcset = a.dataset.fullSrcset ?? "";
-    viewerImg.src = a.dataset.full ?? a.href;
-    viewerImg.alt = img.alt;
-    el("viewerCount").textContent = shots.length > 1 ? `${shot + 1} / ${shots.length}` : "";
-    const many = shots.length > 1;
-    el("viewerPrev").hidden = !many;
-    el("viewerNext").hidden = !many;
-  }
-  viewerImg.addEventListener("load", () => viewerImg.classList.remove("swap"));
-  function openViewer(a: HTMLAnchorElement) {
-    const detail = a.closest<HTMLElement>(".place-detail")!;
-    shots = [...detail.querySelectorAll<HTMLAnchorElement>(".thumb")];
-    el("viewerPlace").textContent = detail.querySelector(".place-title")?.textContent ?? "";
-    opener = a;
-    viewer.hidden = false;
-    document.documentElement.classList.add("viewer-open");
-    showShot(Number(a.dataset.i));
-    el("viewerClose").focus();
-  }
-  function closeViewer() {
-    viewer.hidden = true;
-    document.documentElement.classList.remove("viewer-open");
-    viewerImg.removeAttribute("src");
-    viewerImg.removeAttribute("srcset");
-    opener?.focus();
-  }
-  document.querySelectorAll<HTMLAnchorElement>(".thumb").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); openViewer(a); }));
-  el("viewerClose").addEventListener("click", closeViewer);
-  el("viewerPrev").addEventListener("click", () => showShot(shot - 1));
-  el("viewerNext").addEventListener("click", () => showShot(shot + 1));
-  document.addEventListener("keydown", (e) => {
-    if (viewer.hidden) return;
-    if (e.key === "Escape") closeViewer();
-    else if (e.key === "ArrowRight" && shots.length > 1) showShot(shot + 1);
-    else if (e.key === "ArrowLeft" && shots.length > 1) showShot(shot - 1);
-    else return;
-    e.preventDefault();
-  });
-  // Swipe left/right on touch; a tap on the dark area around the photo closes it.
-  let swipe: { x: number; y: number } | null = null;
-  const vStage = el("viewerStage");
-  vStage.addEventListener("pointerdown", (e) => { swipe = { x: e.clientX, y: e.clientY }; });
-  vStage.addEventListener("pointerup", (e) => {
-    if (!swipe) return;
-    const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
-    swipe = null;
-    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) && shots.length > 1) showShot(shot + (dx < 0 ? 1 : -1));
-    else if (Math.abs(dx) < 6 && Math.abs(dy) < 6 && e.target === vStage) closeViewer();
-  });
-
-  // ---------- Controls ----------
+  globeOpenBtn.addEventListener("click", openGlobe);
+  for (const ev of ["pointerenter", "pointerdown", "focus"]) globeOpenBtn.addEventListener(ev, () => loadMap(), { once: true });
+  el("globeClose").addEventListener("click", () => closeGlobe());
   const setZoom = (z: number) => { zoom = Math.max(0.8, Math.min(6, z)); fly = null; dirty = true; lastInteract = performance.now(); };
   el("zoomIn").addEventListener("click", () => setZoom(zoom * 1.4));
   el("zoomOut").addEventListener("click", () => setZoom(zoom / 1.4));
-  el("home").addEventListener("click", () => { if (home) flyTo(home, 1); });
-  svg.addEventListener("wheel", (e) => { e.preventDefault(); setZoom(zoom * Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
+  svg.addEventListener("wheel", (e) => { if (!globeOpen) return; e.preventDefault(); setZoom(zoom * Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
 
-  // ---------- Drag / hover / click ----------
   let moved = 0;
   let last = { x: 0, y: 0, t: 0 };
   const toVB = (e: PointerEvent) => {
-    const r = svg.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) / r.width) * VB, y: ((e.clientY - r.top) / r.height) * VB, scale: VB / r.width };
+    const b = svg.getBoundingClientRect();
+    return { x: ((e.clientX - b.left) / b.width) * VB, y: ((e.clientY - b.top) / b.height) * VB, scale: VB / b.width };
   };
-  svg.addEventListener("pointerdown", (e) => {
-    dragging = true; fly = null; vel = 0; moved = 0;
-    last = { x: e.clientX, y: e.clientY, t: performance.now() };
-    svg.setPointerCapture(e.pointerId);
-    svg.classList.add("grabbing");
-  });
-  svg.addEventListener("pointermove", (e) => {
-    if (dragging) {
-      const dx = e.clientX - last.x, dy = e.clientY - last.y;
-      moved += Math.abs(dx) + Math.abs(dy);
-      const k = toVB(e).scale * (0.25 / zoom);
-      rot = [rot[0] + dx * k, Math.max(-80, Math.min(80, rot[1] - dy * k))];
-      vel = dx * k;
-      last = { x: e.clientX, y: e.clientY, t: performance.now() };
-      dirty = true;
-      tip.hidden = true;
-      return;
-    }
-    hover(e);
-  });
-  const end = (e: PointerEvent) => {
-    if (!dragging) return;
-    dragging = false;
-    svg.classList.remove("grabbing");
-    lastInteract = performance.now();
-    if (performance.now() - last.t > 80) vel = 0;
-    if (moved < 5) {
-      vel = 0;
-      const key = markerAt(e);
-      if (key) select(key);
-    }
-  };
-  svg.addEventListener("pointerup", end);
-  svg.addEventListener("pointercancel", end);
-  svg.addEventListener("pointerleave", () => { if (!dragging) { hovered = null; tip.hidden = true; svg.classList.remove("pointing"); setClasses(); } });
-
-  /** Nearest visible marker within ~20 screen px. */
+  /** The visible marker nearest the pointer, within about 22 screen px. */
   function markerAt(e: PointerEvent): string | null {
     const { x, y, scale } = toVB(e);
-    let best: string | null = null, bestD = 20 * scale;
+    let best: string | null = null, bestD = 22 * scale;
     for (const p of pins) {
       if (!p.visible) continue;
       const xy = projection(p.at);
@@ -512,44 +1046,396 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
     }
     return best;
   }
-
-  function hover(e: PointerEvent) {
-    const key = markerAt(e);
-    if (key !== hovered) { hovered = key; setClasses(); }
+  function setHover(key: string | null, e?: PointerEvent) {
+    if (key !== hovered) { hovered = key; for (const p of pins) p.g.classList.toggle("hot", p.m.key === key); }
     svg.classList.toggle("pointing", !!key);
-    if (key) {
-      tip.textContent = byKey.get(key)!.name;
-      const r = stage.getBoundingClientRect();
-      tip.style.transform = `translate(${e.clientX - r.left + 14}px, ${e.clientY - r.top + 14}px)`;
+    if (key && e) {
+      tip.textContent = spotByKey.get(key)!.label;
+      const b = floor.getBoundingClientRect();
+      tip.style.transform = `translate(${e.clientX - b.left + 14}px, ${e.clientY - b.top + 14}px)`;
       tip.hidden = false;
     } else tip.hidden = true;
   }
+  svg.addEventListener("pointerdown", (e) => {
+    if (!globeOpen || e.button !== 0) return;
+    dragging = true; fly = null; vel = 0; moved = 0;
+    last = { x: e.clientX, y: e.clientY, t: performance.now() };
+    svg.setPointerCapture(e.pointerId);
+    svg.classList.add("grabbing");
+  });
+  svg.addEventListener("pointermove", (e) => {
+    if (!globeOpen) return;
+    if (!dragging) { setHover(markerAt(e), e); return; }
+    const dx = e.clientX - last.x, dy = e.clientY - last.y;
+    moved += Math.abs(dx) + Math.abs(dy);
+    const k = toVB(e).scale * (0.25 / zoom);
+    rot = [rot[0] + dx * k, clamp(rot[1] - dy * k, -80, 80)];
+    vel = dx * k;
+    last = { x: e.clientX, y: e.clientY, t: performance.now() };
+    dirty = true;
+    tip.hidden = true;
+  });
+  const endGlobeDrag = (e: PointerEvent) => {
+    if (!dragging) return;
+    dragging = false;
+    svg.classList.remove("grabbing");
+    lastInteract = performance.now();
+    if (performance.now() - last.t > 80) vel = 0;
+    if (moved < 5) {
+      vel = 0;
+      const spot = spotByKey.get(markerAt(e) ?? "");
+      const list = spot ? spot.keys.map((k) => byKey.get(k)).filter((r): r is Roll => !!r) : [];
+      if (!list.length) return;
+      // Rolls that weren't on the floor fall onto it first, then are picked up (or gathered) once they've landed.
+      closeGlobe(false);
+      const fell = list.map((r) => arrive(r, true)).some(Boolean);
+      const next = () => (list.length === 1 ? hold(list[0]) : gather(list, spot!.place));
+      // Unless the globe was opened again while they fell: picking up now would shut it under the pointer.
+      if (fell && !reduced) window.setTimeout(() => { if (!globeOpen) next(); }, 950);
+      else next();
+    }
+  };
+  svg.addEventListener("pointerup", endGlobeDrag);
+  svg.addEventListener("pointercancel", endGlobeDrag);
+  svg.addEventListener("pointerleave", () => { if (!dragging) setHover(null); });
 
-  sizeCanvas();
+  layoutGlobe();
   render();
   requestAnimationFrame(tick);
+
+  // ---------- Photo viewer ----------
+  // Past the last photo of a roll it runs on into the next collection (and back past the first into the one before),
+  // picking that roll up behind the viewer so closing it leaves you where you got to.
+  const viewer = el("viewer");
+  const viewerImg = el("viewerImg") as HTMLImageElement;
+  let viewRoll: Roll | null = null;
+  let shots: HTMLAnchorElement[] = [];
+  let shot = 0;
+  let opener: HTMLElement | null = null;
+  const withPhotos = () => rolls.filter((r) => r.shots.length);
+  /** While the viewer is open everything else on the page is inert, so Tab can't wander off behind it. */
+  function shutBehind(on: boolean) {
+    for (let n: HTMLElement = viewer; n.parentElement && n !== document.body; n = n.parentElement) {
+      for (const sib of n.parentElement.children) if (sib !== n && sib instanceof HTMLElement && sib.tagName !== "SCRIPT") sib.inert = on;
+    }
+  }
+  const canStep = () => shots.length > 1 || withPhotos().length > 1;
+  function showShot(i: number) {
+    if (!viewRoll) return;
+    if (i >= shots.length || i < 0) {
+      // Find the nearest roll that way that has any photos.
+      const dir = i < 0 ? -1 : 1;
+      let r = viewRoll;
+      do r = nextRoll(r, dir); while (!r.shots.length && r !== viewRoll);
+      if (r !== viewRoll) {
+        viewRoll = r;
+        shots = r.shots;
+        el("viewerPlace").textContent = r.name;
+        hold(r, false);
+      }
+      i = dir < 0 ? shots.length - 1 : 0;
+    }
+    shot = i;
+    const a = shots[shot];
+    viewerImg.classList.add("swap");
+    viewerImg.srcset = a.dataset.fullSrcset ?? "";
+    viewerImg.src = a.dataset.full ?? a.href;
+    viewerImg.alt = a.querySelector("img")!.alt;
+    el("viewerCount").textContent = shots.length > 1 ? `${shot + 1} / ${shots.length}` : "";
+    el("viewerPrev").hidden = el("viewerNext").hidden = !canStep();
+    opener = a;
+    // Wind the roll behind to the same frame.
+    if (held === viewRoll) wind((viewRoll.box.offsetWidth / 2 - (a.offsetLeft + a.offsetWidth / 2)) * scale);
+  }
+  viewerImg.addEventListener("load", () => viewerImg.classList.remove("swap"));
+  function openViewer(r: Roll, a: HTMLAnchorElement) {
+    viewRoll = r;
+    shots = r.shots;
+    el("viewerPlace").textContent = r.name;
+    viewer.hidden = false;
+    shutBehind(true);
+    document.documentElement.classList.add("viewer-open");
+    showShot(Number(a.dataset.i));
+    el("viewerClose").focus();
+  }
+  function closeViewer() {
+    viewer.hidden = true;
+    shutBehind(false);
+    document.documentElement.classList.remove("viewer-open");
+    viewerImg.removeAttribute("src");
+    viewerImg.removeAttribute("srcset");
+    opener?.focus({ preventScroll: true });
+  }
+  el("viewerClose").addEventListener("click", closeViewer);
+  el("viewerPrev").addEventListener("click", () => showShot(shot - 1));
+  el("viewerNext").addEventListener("click", () => showShot(shot + 1));
+  document.addEventListener("keydown", (e) => {
+    if (viewer.hidden) return;
+    if (e.key === "Escape") closeViewer();
+    else if (e.key === "ArrowRight" && canStep()) showShot(shot + 1);
+    else if (e.key === "ArrowLeft" && canStep()) showShot(shot - 1);
+    else return;
+    e.preventDefault();
+  });
+  let swipe: { x: number; y: number } | null = null;
+  const vStage = el("viewerStage");
+  vStage.addEventListener("pointerdown", (e) => { swipe = { x: e.clientX, y: e.clientY }; });
+  vStage.addEventListener("pointerup", (e) => {
+    if (!swipe) return;
+    const dx = e.clientX - swipe.x, dy = e.clientY - swipe.y;
+    swipe = null;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) && canStep()) showShot(shot + (dx < 0 ? 1 : -1));
+    else if (Math.abs(dx) < 6 && Math.abs(dy) < 6 && e.target === vStage) closeViewer();
+  });
 </script>
 
 <style>
-  /* Title on top, globe fills the rest of the first screen, centred. */
-  .atlas { --headerH: 68px; display: flex; flex-direction: column; height: calc(100svh - var(--headerH)); min-height: 540px; }
-  .globe-head { width: 100%; padding-block: clamp(16px, 3vw, 40px) 0; }
-  .globe-head .page-title { font-size: clamp(2.6rem, 6vw, 5.5rem); }
-  .hint { text-align: center; padding: 6px 0 clamp(14px, 2vw, 24px); }
+  /* The floor is the whole first screen and runs up underneath the site header; it stops short of the footer. */
+  .spill { --headerH: 68px; position: relative; display: flex; flex-direction: column; height: 100svh; min-height: 320px; margin-top: calc(-1 * var(--headerH)); }
+  :global(.site-header) { background: none; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: none; }
+  :global(.site-header a), :global(.site-header button) { pointer-events: auto; }
+  :global(.site-header .nav a) { color: color-mix(in srgb, var(--ink) 62%, transparent); }
+  :global(.site-header .nav a:hover), :global(.site-header .nav a[aria-current="page"]) { color: var(--ink); }
 
-  .globe-stage {
-    position: relative; flex: 1; min-height: 0; container: stage / size;
-    display: grid; place-items: center; transition: transform 0.6s var(--ease);
+  /* isolation keeps the strips' stacking and blending inside the floor, so a raised strip never climbs over the header. */
+  .floor { position: relative; z-index: 0; isolation: isolate; flex: 1; min-height: 0; overflow: clip; background: var(--paper); --h: clamp(115px, 13.8vw, 221px); }
+  /* The floor itself: a coarse paper grain with a faint, larger mottling over the paper colour, and light falling off towards the edges as if from one lamp
+     overhead. It sits under everything (negative z-index inside the floor's own stacking context), so the film, which
+     multiplies what's beneath it, picks the grain up too. */
+  .floor::before {
+    content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(ellipse 75% 70% at 50% 45%, transparent 40%, rgba(40, 36, 30, 0.1) 100%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.48' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.16 0 0 0 0 0.14 0 0 0 0 0.12 0 0 0 0.85 -0.12'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E") 0 0 / 300px 300px,
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='700' height='700'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.2 0 0 0 0 0.18 0 0 0 0 0.15 0 0 0 0.35 -0.08'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E") 0 0 / 700px 700px;
+    opacity: 0.7;
   }
-  .globe-box { position: relative; width: min(100cqw - 32px, 100cqh); aspect-ratio: 1; }
-  /* Soft contact shadow under the sphere. */
-  .globe-box::before { content: ""; position: absolute; left: 14%; right: 14%; bottom: -3%; height: 9%; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.22), transparent); }
+
+  /* ---------- One roll of film ----------
+     A roll is two layers, .base (the film) and .top (its photos), given the same position, angle and size through
+     the variables below so they move as one. The roll itself must not become a stacking context (no transform,
+     opacity, filter or z-index on it), or the film could no longer blend with the rolls underneath.
+     --h is the film's full height (the 35 mm), --band the perforated edge, --pitch the perforation spacing. */
+  .roll { --x: 50%; --y: 50%; }
+  .strip {
+    --band: calc(var(--h) * 0.11); --pitch: calc(var(--h) * 0.136);
+    --rot: var(--a, var(--r-wide, 0deg));
+    position: absolute; left: var(--x); top: var(--y); z-index: var(--z, auto); height: var(--h);
+    transform: translate(-50%, -50%) translate(var(--dx, 0px), var(--dy, 0px)) rotate(var(--rot)) scale(var(--s, 1));
+    transition: transform 0.7s var(--ease), left 0.7s var(--ease), top 0.7s var(--ease), opacity 0.5s, filter 0.5s;
+    animation: fall 0.9s var(--ease) var(--delay, 0s) both; cursor: grab; touch-action: pan-y;
+    user-select: none; -webkit-user-select: none;
+  }
+  /* Film is a filter, not paint: it multiplies whatever lies under it, so a roll underneath (photos included) shows
+     through the one on top and every extra layer makes the pile darker. Its own photos are in .top and stay solid. */
+  .strip.base {
+    mix-blend-mode: multiply;
+    filter: drop-shadow(0 calc(var(--h) * 0.045) calc(var(--h) * 0.075) rgba(0, 0, 0, 0.25));
+  }
+  /* While a roll is being pushed, is sliding, or is being scattered, script places it every frame: no easing on top. */
+  .roll.dragging .strip, .roll.loose .strip { transition: opacity 0.4s, filter 0.3s; }
+  .roll.dragging .strip { cursor: grabbing; }
+  @keyframes fall { from { opacity: 0; translate: 0 -9vh; scale: 1.16; rotate: var(--spin, 12deg); } }
+  /* A roll lifted by a first tap looks like a hovered one. */
+  .floor:not(.holding, .globing, .gathering) .roll.primed .strip { --s: 1.03; }
+  .floor:not(.holding, .globing, .gathering) .roll.primed .strip.base { filter: drop-shadow(0 calc(var(--h) * 0.09) calc(var(--h) * 0.14) rgba(0, 0, 0, 0.29)); }
+  @media (hover: hover) {
+    .floor:not(.holding, .globing, .gathering) .roll:hover .strip { --s: 1.03; }
+    .floor:not(.holding, .globing, .gathering) .roll:hover .strip.base { filter: drop-shadow(0 calc(var(--h) * 0.09) calc(var(--h) * 0.14) rgba(0, 0, 0, 0.29)); }
+  }
+
+  /* Where each roll lands if the script that scatters them afresh on every visit hasn't run: angles repeat every 7
+     rolls and positions every 5, so no two near neighbours match.
+     --r-tall is the same angle measured from vertical, for screens taller than they are wide. */
+  .roll:nth-child(7n + 1) { --r-wide: -21deg; --r-tall: -69deg; }
+  .roll:nth-child(7n + 2) { --r-wide: 34deg; --r-tall: 56deg; }
+  .roll:nth-child(7n + 3) { --r-wide: -52deg; --r-tall: -38deg; }
+  .roll:nth-child(7n + 4) { --r-wide: 9deg; --r-tall: 81deg; }
+  .roll:nth-child(7n + 5) { --r-wide: 63deg; --r-tall: 27deg; }
+  .roll:nth-child(7n + 6) { --r-wide: -38deg; --r-tall: -52deg; }
+  .roll:nth-child(7n) { --r-wide: 19deg; --r-tall: 71deg; }
+  .roll:nth-child(5n + 1) { --x: 36%; --y: 40%; }
+  .roll:nth-child(5n + 2) { --x: 62%; --y: 58%; }
+  .roll:nth-child(5n + 3) { --x: 50%; --y: 50%; }
+  .roll:nth-child(5n + 4) { --x: 27%; --y: 68%; }
+  .roll:nth-child(5n) { --x: 74%; --y: 32%; }
+  .roll:nth-child(odd) { --spin: 14deg; }
+  .roll:nth-child(even) { --spin: -11deg; }
+  .roll:nth-child(6n + 2) { --delay: 0.1s; }
+  .roll:nth-child(6n + 3) { --delay: 0.2s; }
+  .roll:nth-child(6n + 4) { --delay: 0.3s; }
+  .roll:nth-child(6n + 5) { --delay: 0.4s; }
+  .roll:nth-child(6n) { --delay: 0.5s; }
+  @media (max-aspect-ratio: 1 / 1) { .strip { --rot: var(--a, var(--r-tall, 90deg)); } }
+
+  /* Slide-film base with real holes punched through it: the mask keeps the middle and cuts the two edges.
+     The base colour is how much light the unexposed film lets through (about half), not a paint colour.
+     It is a touch blue on purpose: the warm paper shows through it, and the two cancel to a neutral grey on screen. */
+  .film { position: relative; height: 100%; }
+  .base .film {
+    background: rgb(135, 136, 138);
+    --hole: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 81'%3E%3Cpath fill-rule='evenodd' d='M0 0h100v81H0z M40 30h20a4.5 4.5 0 0 1 4.5 4.5v12a4.5 4.5 0 0 1-4.5 4.5H40a4.5 4.5 0 0 1-4.5-4.5v-12a4.5 4.5 0 0 1 4.5-4.5z'/%3E%3C/svg%3E");
+    -webkit-mask: var(--hole) left top / var(--pitch) var(--band) repeat-x, var(--hole) left bottom / var(--pitch) var(--band) repeat-x, linear-gradient(#000, #000) center / 100% calc(100% - 2 * var(--band) + 1px) no-repeat;
+    mask: var(--hole) left top / var(--pitch) var(--band) repeat-x, var(--hole) left bottom / var(--pitch) var(--band) repeat-x, linear-gradient(#000, #000) center / 100% calc(100% - 2 * var(--band) + 1px) no-repeat;
+  }
+  /* A band of light across the acetate. */
+  .base .film::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(102deg, transparent 32%, rgba(255, 255, 255, 0.08) 46%, transparent 58%); }
+  /* On the floor the film has a stretch of blank film at both ends, the same length (the tail matches the leader plus
+     its margin). A held roll stops just after its last frame, the same gap from it as between frames. */
+  .frames { display: flex; align-items: stretch; gap: calc(var(--h) * 0.04); height: 100%; padding: var(--band) calc(var(--h) * 0.57) var(--band) calc(var(--h) * 0.12); }
+  .roll.held .frames { padding-right: calc(var(--h) * 0.04); }
+  .frame { flex: none; display: block; height: 100%; border-radius: calc(var(--h) * 0.012); overflow: hidden; }
+  .frame img { height: 100%; width: auto; max-width: none; background: #2a2927; }
+  /* An unexposed frame is the densest part of slide film, so it is darker than the base around it. */
+  .frame.blank { aspect-ratio: 3 / 2; background: rgba(0, 0, 0, 0.26); }
+  /* Blank frames only pad out a short roll on the floor; a held roll is just its photos. */
+  .roll.held .frame.blank { display: none; }
+  /* The photo layer keeps the whole row for its spacing but shows only the photos. */
+  .top .leader, .top .blank { visibility: hidden; }
+  /* The roll's name, written on the leader at both ends so one is in view however the strip lies. */
+  /* The leader at the start of the film. On the floor it is blank (the name was a lot of text there, and real film has
+     no title on it; the tooltip still gives it); once the roll is picked up (or gathered with others from the same place), its name is written on it. */
+  .leader { flex: none; display: grid; align-content: center; width: calc(var(--h) * 0.45); color: #fff; white-space: nowrap; }
+  /* Name in a soft off-white, and under it, in small grey capitals, where it was shot. */
+  .lname { display: none; font: 400 calc(var(--h) * 0.065) / 1 var(--display); letter-spacing: var(--d-track-sm); color: #e6e4dd; }
+  .lplace { display: none; margin-top: 0.9em; font: 600 calc(var(--h) * 0.026) / 1.2 var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: #8f8d86; }
+  .roll.held .leader, .roll.gathered .leader { width: auto; padding-inline: calc(var(--h) * 0.14); }
+  .roll.held .lname, .roll.gathered .lname, .roll.held .lplace, .roll.gathered .lplace { display: block; }
+  /* Gathered rolls are shown big, so their names are smaller than on a held roll, leaving room for the photos. */
+  .roll.gathered .lname { font-size: calc(var(--h) * 0.06); }
+  .roll.gathered .lplace { font-size: calc(var(--h) * 0.026); }
+
+  /* On the floor one invisible button covers the strip; once it is held, the frames underneath take over. */
+  .pick { position: absolute; inset: 0; cursor: inherit; }
+  .pick:focus-visible { outline-offset: 6px; }
+  .roll.held .pick { display: none; }
+
+  /* ---------- Held: straightened, enlarged, centred; the rest of the floor fades back ---------- */
+  /* A held roll is solid: nothing on the floor shows through it. */
+  .roll.held { --x: 50%; --y: 56%; }
+  .roll.held .strip { --rot: 0deg; mix-blend-mode: normal; }
+  /* Gathered: straight, and solid like a held roll. Hovering lifts one a little. */
+  .roll.gathered .strip { --rot: 0deg; mix-blend-mode: normal; cursor: pointer; }
+  .roll.gathered .strip { opacity: var(--gfade, 1); touch-action: none; }
+  .roll.gathered.faded .strip { pointer-events: none; }
+  .floor.gather-sliding .roll.gathered .strip { transition: opacity 0.15s, filter 0.3s; cursor: grabbing; }
+
+  @media (hover: hover) { .roll.gathered:hover .strip { translate: 0 -4px; } }
+  .held-head.split { justify-content: space-between; align-items: baseline; }
+  .held-count { display: flex; gap: 12px; margin: 0; padding: 8px 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .held-title { color: var(--ink); }
+  .held-actions { display: flex; align-items: baseline; gap: clamp(14px, 2vw, 24px); }
+  /* While a roll is open: a dark pill offering the next one, its arrow nudging the way. */
+  .next-roll {
+    display: inline-flex; align-items: center; gap: 8px; padding: 7px 13px; border-radius: 999px; white-space: nowrap;
+    background: var(--ink); color: var(--paper); font: 500 0.78rem/1.2 var(--display); letter-spacing: -0.01em;
+    box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.45); animation: next-in 0.35s var(--ease);
+  }
+  .next-roll[hidden] { display: none; }
+  .next-roll .arrow { display: inline-block; animation: next-nudge 1.6s ease-in-out infinite; }
+  @keyframes next-in { from { opacity: 0; translate: 8px 0; } }
+  @keyframes next-nudge { 50% { transform: translateX(3px); } }
+  @media (prefers-reduced-motion: reduce) { .next-roll, .next-roll .arrow { animation: none; } }
+  @media (max-width: 480px) { .next-roll { font-size: 0.72rem; padding: 6px 11px; } }
+  /* On phones the name and count take a row of their own, with Next and Put back under them. */
+  .held-count, .close { white-space: nowrap; }
+  @media (max-width: 560px) {
+    .held-head.split { flex-wrap: wrap; }
+    .held-head.split > div:first-child { flex: 1 0 100%; }
+    .held-actions { margin-left: auto; }
+  }
+  .gather-title { margin: 0; padding: 8px 0; color: var(--ink); }
+  /* "One more ↓": the same dark pill, above and below a gathered stack that has more rolls than fit. */
+  .more-rolls {
+    display: inline-flex; align-items: center; gap: 8px; padding: 7px 13px; border-radius: 999px; white-space: nowrap;
+    background: var(--ink); color: var(--paper); font: 500 0.78rem/1.2 var(--display); letter-spacing: -0.01em;
+    box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.45);
+  }
+  .more-rolls[hidden] { display: none; }
+  .more-rolls.below { position: absolute; z-index: 10000; left: 50%; translate: -50% 0; bottom: calc(clamp(20px, 5vh, 44px) + env(safe-area-inset-bottom, 0px)); }
+  .more-rolls .arrow { display: inline-block; animation: more-nudge 1.6s ease-in-out infinite; }
+  .more-rolls.below .arrow { --dir: 1; }
+  @keyframes more-nudge { 50% { transform: translateY(calc(var(--dir, -1) * 3px)); } }
+  @media (prefers-reduced-motion: reduce) { .more-rolls .arrow { animation: none; } }
+  /* Rolls that aren't on the floor wait out of sight; one brought in quietly skips the falling-in animation. */
+  .roll.away { display: none; }
+  .roll.quiet .strip { animation: none; }
+  .roll.held .base .film, .roll.gathered .base .film { background: rgb(24, 24, 24); }
+  .roll.held .shot { cursor: pointer; }
+  .roll.held .shot:focus-visible { outline: 2px solid #ecebe6; outline-offset: -2px; }
+  /* Behind an open roll the rest of the floor goes hazy: fainter and out of focus. */
+  .floor.holding .roll:not(.held) .strip, .floor.globing .roll .strip, .floor.gathering .roll:not(.gathered) .strip { opacity: 0.1; pointer-events: none; filter: blur(calc(var(--h) * 0.06)); }
+  .held-head { position: absolute; z-index: 10000; inset: calc(var(--headerH) + clamp(8px, 2vw, 24px)) 0 auto; display: flex; justify-content: flex-end; align-items: start; gap: 16px; max-width: none; pointer-events: none; }
+  .held-head > * { pointer-events: auto; }
+  .close { padding: 8px 0; }
+  .close:hover { color: var(--ink); }
+  .tip { position: absolute; z-index: 10001; left: 0; top: 0; pointer-events: none; padding: 6px 10px; background: var(--ink); color: var(--paper); font: 500 0.78rem/1.2 var(--display); white-space: nowrap; border-radius: 2px; }
+
+  /* ---------- The globe ----------
+     .globe-box is laid out at its open size (--big, set by script) in the middle, and shrunk by --k and moved by
+     --cx/--cy onto the button in the lower right corner, so opening it is one move. It stays above the film. */
+  .globe-wrap { --gs: clamp(102px, 10.5vw, 156px); position: absolute; inset: 0; z-index: 9000; pointer-events: none; }
+  .globe-box {
+    position: absolute; left: 50%; top: 50%; width: 600px; aspect-ratio: 1;
+    transform: translate(-50%, -50%) translate(var(--cx, 0px), var(--cy, 0px)) scale(var(--k, 0.18)); transition: transform 0.75s var(--ease);
+  }
+  .globe-wrap.open .globe-box { transform: translate(-50%, -50%); pointer-events: auto; }
+  /* A soft contact shadow, so the small globe sits on the floor with the film. */
+  .globe-box::before { content: ""; position: absolute; left: 12%; right: 12%; bottom: -4%; height: 10%; border-radius: 50%; background: radial-gradient(closest-side, rgba(0, 0, 0, 0.28), transparent); }
   .earth, .globe { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-  .globe { touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+  .globe { touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; overflow: visible; }
   .globe.grabbing { cursor: grabbing; }
   .globe.pointing { cursor: pointer; }
+  .globe-open {
+    position: absolute; right: max(20px, var(--gutter)); bottom: calc(clamp(20px, 3vw, 36px) + 26px + env(safe-area-inset-bottom, 0px));
+    width: var(--gs); aspect-ratio: 1; border-radius: 50%; pointer-events: auto; cursor: pointer;
+  }
+  /* Cues that it opens: "See more" under it, and rings rippling out until it has been opened once. */
+  .globe-cue {
+    position: absolute; top: calc(100% + 10px); left: 50%; translate: -50% 0; white-space: nowrap;
+    color: color-mix(in srgb, var(--ink) 78%, transparent); transition: color 0.2s;
+  }
+  .globe-open:hover .globe-cue, .globe-open:focus-visible .globe-cue { color: var(--ink); }
+  .globe-open::before, .globe-open::after {
+    content: ""; position: absolute; inset: -2px; border-radius: 50%; border: 1px solid var(--ink); opacity: 0; pointer-events: none;
+    animation: ripple 2.8s var(--ease) 1.4s infinite;
+  }
+  .globe-open::after { animation-delay: 2.1s; }
+  .globe-wrap.seen .globe-open::before, .globe-wrap.seen .globe-open::after { animation: none; }
+  @keyframes ripple { from { scale: 1; opacity: 0.45; } to { scale: 1.55; opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .globe-open::before, .globe-open::after { animation: none; } }
+  .globe-open:focus-visible { outline: 2px solid var(--ink); outline-offset: 6px; }
+  .globe-wrap.open .globe-open { display: none; }
+  /* "Two more collections →": a dark pill beside the open globe, or under it on narrow screens. */
+  .nudge {
+    position: absolute; top: 50%; z-index: 2; display: flex; align-items: center; gap: 10px; white-space: nowrap;
+    padding: 10px 14px; border-radius: 999px; background: var(--ink); color: var(--paper);
+    font: 500 0.8rem/1.25 var(--display); letter-spacing: -0.01em;
+    opacity: 0; pointer-events: none; transition: opacity 0.35s, transform 0.35s var(--ease);
+    box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.45);
+  }
+  .globe-wrap.open .nudge.show { opacity: 1; pointer-events: auto; transition-delay: 0.5s; }
+  .nudge .arrow { font-size: 1.1rem; }
+  .nudge.left { right: calc(50% + var(--big, 600px) / 2 + 18px); transform: translate(8px, -50%); }
+  .nudge.right { left: calc(50% + var(--big, 600px) / 2 + 18px); transform: translate(-8px, -50%); }
+  .globe-wrap.open .nudge.show { transform: translate(0, -50%); }
+  .globe-wrap.open .nudge.show .arrow { animation: nudge 1.6s ease-in-out infinite; }
+  .nudge.left .arrow { --dir: -1; }
+  .nudge.right .arrow { --dir: 1; }
+  @keyframes nudge { 50% { transform: translateX(calc(var(--dir) * 4px)); } }
+  .globe-wrap.nudge-below .nudge { top: calc(50% + var(--big, 600px) / 2 + 14px); font-size: 0.78rem; padding: 8px 12px; }
+  .globe-wrap.nudge-below .nudge.left { right: auto; left: 16px; transform: translateY(6px); }
+  .globe-wrap.nudge-below .nudge.right { left: auto; right: 16px; transform: translateY(6px); }
+  .globe-wrap.nudge-below.open .nudge.show { transform: none; }
+  @media (prefers-reduced-motion: reduce) { .globe-wrap.open .nudge.show .arrow { animation: none; } }
 
-  /* Used only when WebGL is missing. */
+  /* While a roll is picked up, the globe gets out of the way entirely. */
+  .globe-wrap { transition: opacity 0.4s, visibility 0s; }
+  .floor.holding .globe-wrap, .floor.gathering .globe-wrap { opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0s 0.3s; }
+  @media (hover: hover) {
+    .globe-wrap:not(.open):has(.globe-open:hover) .globe-box { transform: translate(-50%, -50%) translate(var(--cx, 0px), var(--cy, 0px)) scale(calc(var(--k, 0.18) * 1.08)); }
+  }
+
   .globe :global(.fallback-sphere) { fill: #9fc2dc; }
   .globe :global(.fallback-land) { fill: #d7d8a8; }
   .globe:global(.gl) :global(.fallback-sphere), .globe:global(.gl) :global(.fallback-land) { display: none; }
@@ -557,99 +1443,29 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
   .globe :global(.borders) { fill: none; stroke: #3a3a2c; stroke-width: 0.6; opacity: 0.4; stroke-linejoin: round; }
   .globe :global(.state-borders) { fill: none; stroke: #3a3a2c; stroke-width: 0.45; opacity: 0.25; stroke-dasharray: 2 1.5; }
 
-  .atlas { --pin: #e0362c; }
+  /* Red markers: only on the open globe, too small to aim at otherwise. */
+  .globe-wrap { --pin: #e0362c; }
+  #pins { opacity: 0; transition: opacity 0.3s; }
+  .globe-wrap.open #pins { opacity: 1; transition: opacity 0.4s 0.45s; }
   .globe :global(.pin.hidden) { display: none; }
   .globe :global(.pin .dot) { fill: var(--pin); stroke: #fff; stroke-width: 2; transform-box: fill-box; transform-origin: center; transition: transform 0.2s var(--ease); }
   .globe :global(.pin .pulse) { fill: none; stroke: var(--pin); stroke-width: 1.5; transform-box: fill-box; transform-origin: center; animation: pulse 2.4s var(--ease) infinite; }
   .globe :global(.pin.empty .dot) { fill: #fff; stroke: var(--pin); }
-  .globe :global(.pin.hot .dot), .globe :global(.pin.sel .dot) { transform: scale(1.45); }
+  .globe :global(.pin.hot .dot) { transform: scale(1.45); }
+  .globe :global(.pin.many.hot .dot) { transform: scale(1.2); }
+  .globe :global(.pin .count) { fill: #fff; font: 700 12px/1 var(--sans); text-anchor: middle; pointer-events: none; }
   @keyframes pulse { from { transform: scale(0.5); opacity: 0.9; } to { transform: scale(2.2); opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .globe :global(.pin .pulse) { animation: none; opacity: 0; } }
 
-  .tip { position: absolute; left: 0; top: 0; pointer-events: none; padding: 6px 10px; background: var(--ink); color: var(--paper); font: 500 0.78rem/1.2 var(--display); white-space: nowrap; border-radius: 2px; }
+  .globe-zoom { position: absolute; z-index: 10000; right: max(16px, var(--gutter)); bottom: clamp(48px, 7vh, 72px); display: grid; gap: 6px; }
+  .globe-zoom[hidden] { display: none; }
+  .globe-zoom button { width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 999px; background: var(--mat); font: 400 1.1rem/1 var(--display); color: var(--ink); transition: border-color 0.2s; }
+  .globe-zoom button:hover { border-color: var(--ink); }
 
-  /* Home / + / − stacked at the globe's lower right, outside the sphere. */
-  .controls { position: absolute; left: calc(100% + 4px); bottom: 3%; display: grid; justify-items: start; gap: 6px; }
-  .controls button { min-width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 999px; background: var(--mat); font: 400 1.1rem/1 var(--display); color: var(--ink); transition: border-color 0.2s; }
-  .controls .home-btn { display: grid; place-items: center; }
-  .controls button:hover { border-color: var(--ink); }
-
-  /* Side banners. Wide screens: just outside the sphere's left/right edge. Narrow screens: under the globe. */
-  .nudge {
-    position: absolute; top: 50%; z-index: 2; display: flex; align-items: center; gap: 10px; white-space: nowrap;
-    padding: 10px 14px; border-radius: 999px; background: var(--ink); color: var(--paper);
-    font: 500 0.8rem/1.25 var(--display); letter-spacing: -0.01em; text-align: left;
-    opacity: 0; pointer-events: none; transition: opacity 0.35s, transform 0.35s var(--ease);
-    box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.45);
-  }
-  .nudge.show { opacity: 1; pointer-events: auto; }
-  .atlas.drawer-open .nudge { opacity: 0; pointer-events: none; }
-  .nudge .arrow { font-size: 1.1rem; }
-  .nudge.left { right: calc(50% + min(100cqw - 32px, 100cqh) * 0.45 + 18px); transform: translate(8px, -50%); }
-  .nudge.right { left: calc(50% + min(100cqw - 32px, 100cqh) * 0.45 + 18px); transform: translate(-8px, -50%); }
-  .nudge.show.left, .nudge.show.right { transform: translate(0, -50%); }
-  .nudge.show .arrow { animation: nudge 1.6s ease-in-out infinite; }
-  .nudge.left .arrow { --dir: -1; }
-  .nudge.right .arrow { --dir: 1; }
-  @keyframes nudge { 50% { transform: translateX(calc(var(--dir) * 4px)); } }
-  @media (prefers-reduced-motion: reduce) { .nudge.show .arrow { animation: none; } }
-  @container stage (max-aspect-ratio: 8 / 5) {
-    .globe-box { width: min(100cqw - 32px, 100cqh - 70px); }
-    .controls { left: auto; right: 0; justify-items: end; }
-    .globe-stage { place-items: start center; }
-    .nudge { top: calc(min(100cqw - 32px, 100cqh - 70px) + 26px); font-size: 0.78rem; padding: 8px 12px; }
-    .nudge.left { right: auto; left: 16px; transform: translateY(6px); }
-    .nudge.right { left: auto; right: 16px; transform: translateY(6px); }
-    .nudge.show.left, .nudge.show.right { transform: none; }
-  }
-
-  /* Places list, below the first screen. */
-  /* Phones: the stage is only as tall as the globe plus the banner row, so nothing floats in empty space. */
-  @media (max-width: 700px) {
-    .atlas { height: auto; min-height: 0; }
-    .globe-stage { flex: none; height: calc(100vw - 32px + 84px); }
-  }
-
-  /* The globe is the way in. The list stays for keyboard and screen-reader users and only appears while focused. */
-  .places { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .places:focus-within {
-    position: fixed; z-index: 45; left: 16px; bottom: 16px; width: min(420px, calc(100vw - 32px)); height: auto;
-    overflow: visible; clip-path: none; white-space: normal; padding: 14px 20px 4px; background: var(--paper);
-    border: 1px solid var(--line); box-shadow: 0 16px 40px -20px rgba(0, 0, 0, 0.4);
-  }
-  .place-list { list-style: none; margin: 14px 0 0; padding: 0; border-top: 1px solid var(--line); }
-  .place-list li { border-bottom: 1px solid var(--line); }
-  .place-btn { display: flex; width: 100%; justify-content: space-between; align-items: baseline; gap: 16px; padding: 16px 0; text-align: left; }
-  .pname { font: 400 clamp(1.2rem, 2vw, 1.6rem)/1.1 var(--display); letter-spacing: var(--d-track-sm); transition: color 0.2s; }
-  .place-btn:hover .pname { color: var(--pin, #e0362c); }
-
-  /* Drawer: slides in from the right; a bottom sheet on phones. The globe slides left to make room on wide screens. */
-  .drawer {
-    position: fixed; z-index: 40; top: var(--headerH, 68px); right: 0; bottom: 0; width: min(440px, 100vw);
-    padding: 28px clamp(20px, 3vw, 36px) 40px; overflow-y: auto; overscroll-behavior: contain;
-    background: var(--paper); border-left: 1px solid var(--line); box-shadow: -24px 0 48px -32px rgba(0, 0, 0, 0.35);
-    transform: translateX(100%); transition: transform 0.5s var(--ease); visibility: hidden;
-  }
-  .drawer.open { transform: none; visibility: visible; }
-  .drawer:not(.open) { transition: transform 0.5s var(--ease), visibility 0s 0.5s; }
-  @media (min-width: 1000px) { .atlas.drawer-open .globe-stage { transform: translateX(calc(-1 * min(220px, 17vw))); } }
-  @media (max-width: 700px) {
-    .drawer { top: auto; left: 0; width: auto; height: 58svh; border-left: 0; border-top: 1px solid var(--line); border-radius: 14px 14px 0 0; transform: translateY(100%); box-shadow: 0 -24px 48px -32px rgba(0, 0, 0, 0.35); }
-    .atlas.drawer-open .globe-stage { transform: translateY(-18svh); }
-  }
-  .close { display: block; margin: 0 0 18px auto; }
-  .close:hover { color: var(--ink); }
-  .place-title { font: 400 clamp(2rem, 4vw, 3rem)/1 var(--display); letter-spacing: var(--d-track); margin: 0 0 6px; outline: none; }
-  /* Two equal-width columns; each photo keeps its own shape, so heights vary. */
-  .thumbs { columns: 2; column-gap: 12px; margin-top: 24px; }
-  .thumb { display: block; margin-bottom: 12px; break-inside: avoid; }
-  .thumb img { display: block; width: 100%; height: auto; background: var(--paper-2); transition: opacity 0.3s; }
-  .thumb:hover img { opacity: 0.85; }
-  .empty { margin-top: 24px; color: var(--muted); }
 
   /* Full-screen photo viewer: dark surround so the photo carries the colour. */
-  :global(html.viewer-open) { overflow: hidden; }
-  .viewer { position: fixed; inset: 0; z-index: 90; display: grid; grid-template-rows: auto 1fr; background: rgba(14, 14, 13, 0.97); color: #ecebe6; }
+  :global(html.viewer-open), :global(html.floor-busy) { overflow: hidden; }
+  .viewer { position: fixed; inset: 0; z-index: 90; display: grid; grid-template-rows: auto 1fr; background: rgb(14, 14, 13); color: #ecebe6; }
   .viewer[hidden] { display: none; }
   .viewer-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px max(16px, var(--gutter)); }
   .viewer-title { margin: 0; font: 400 1.05rem/1.2 var(--display); letter-spacing: var(--d-track-sm); }
@@ -664,5 +1480,11 @@ const photoCount = (n: number) => (n === 0 ? "No photos yet" : `${n} ${n === 1 ?
   .viewer-nav.prev { left: max(12px, calc(var(--gutter) / 2)); }
   .viewer-nav.next { right: max(12px, calc(var(--gutter) / 2)); }
   .viewer-nav[hidden] { display: none; }
-  @media (max-width: 700px) { .viewer-nav { display: none; } }
+  /* Narrow screens: no room beside the photo, so the two arrows sit side by side under it. */
+  @media (max-width: 700px) {
+    .viewer-stage { padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
+    .viewer-nav { top: auto; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); translate: none; }
+    .viewer-nav.prev { left: calc(50% - 60px); }
+    .viewer-nav.next { right: calc(50% - 60px); }
+  }
 </style>
