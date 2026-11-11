@@ -5,7 +5,7 @@
  * Strips can be pushed around; picking one up (a click, or by touch a tap to lift it and a second to open it)
  * straightens and enlarges it so its frames can be wound through,
  * and a frame opens in a full-screen viewer.
- * Only the featured rolls are on the floor ("featured": true in location.json), 6 at most (4 on phones); if none is
+ * Only the featured rolls are on the floor ("featured": true in location.json), 6 at most (3 on phones); if none is
  * featured, a random few are. Every collection is on the globe, and the others' photos load only when needed.
  * A small globe sits in the lower right corner. Clicking it opens it up: a turning globe (WebGL, textured with Natural
  * Earth II, public/textures/earth.jpg) with a red marker on each place; clicking a marker puts the globe away and picks up
@@ -164,7 +164,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     });
   }
   const tip = el("tip");
-  const heldHead = el("heldHead");
+  const heldHead = el("heldHead"), heldCount = el("heldCount");
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
   /** While a roll is held, rolls are gathered or the globe is open, the page goes back to the top and stays there: the
@@ -192,7 +192,9 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   // ---------- Which rolls are on the floor ----------
   // Only the featured ones (a random few of them if there are more than fit); with nothing featured, a random few of
   // them all. The others are hidden until the globe, the next-roll button or the viewer asks for them.
-  const FLOOR_MAX = floor.clientWidth < 700 ? 4 : 6;
+  // A phone gets three rolls, smaller ones (see .floor), standing up side by side: four were too much film for its width.
+  const phone = floor.clientWidth < 700;
+  const FLOOR_MAX = phone ? 3 : 6;
   const featured = rolls.filter((r) => "featured" in r.node.dataset);
   const onFloor = shuffle(featured.length ? featured : rolls).slice(0, FLOOR_MAX);
   /** Give a roll its photos (they are left unloaded in the page until the roll is on the floor). */
@@ -232,8 +234,35 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   // Angles are dealt from evenly spaced slots so no two rolls land parallel; on tall screens they lean towards vertical.
   // Every roll lands clear of the small globe in the corner: positions are drawn at random until one misses it, first
   // near the middle and then further out and at a slightly different angle; failing that, the clearest one tried wins.
+  // No more than two rolls ever lie on top of one another: a place is turned down if the roll would cover a spot where
+  // two others already cross.
+  type Pt = [number, number];
+  /** The four corners of a strip of this size, centred here and turned this far. */
+  const corners = (x: number, y: number, deg: number, w: number, h: number): Pt[] => {
+    const c = Math.cos((deg * Math.PI) / 180), s = Math.sin((deg * Math.PI) / 180), u: Pt = [(c * w) / 2, (s * w) / 2], v: Pt = [(-s * h) / 2, (c * h) / 2];
+    return [[x - u[0] - v[0], y - u[1] - v[1]], [x + u[0] - v[0], y + u[1] - v[1]], [x + u[0] + v[0], y + u[1] + v[1]], [x - u[0] + v[0], y - u[1] + v[1]]];
+  };
+  /** The part of one convex shape that lies inside another (both listed clockwise on screen). */
+  function clip(shape: Pt[], by: Pt[]): Pt[] {
+    let out = shape;
+    for (let i = 0; i < by.length && out.length; i++) {
+      const [ax, ay] = by[i], [bx, by2] = by[(i + 1) % by.length];
+      const side = ([px, py]: Pt) => (bx - ax) * (py - ay) - (by2 - ay) * (px - ax);
+      const inp = out; out = [];
+      for (let j = 0; j < inp.length; j++) {
+        const p = inp[j], q = inp[(j + 1) % inp.length], sp = side(p), sq = side(q);
+        if (sp >= 0) out.push(p);
+        if ((sp >= 0) !== (sq >= 0)) { const t = sp / (sp - sq); out.push([p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])]); }
+      }
+    }
+    return out;
+  }
+  const area = (poly: Pt[]) => Math.abs(poly.reduce((a, p, i) => { const q = poly[(i + 1) % poly.length]; return a + p[0] * q[1] - q[0] * p[1]; }, 0)) / 2;
+  /** The rolls already laid on the floor. */
+  const laid = new Set<Roll>();
+  const outline = (r: Roll) => { const m = centre(r); return corners(m.x, m.y, r.rot, r.box.offsetWidth, r.box.offsetHeight); };
   /** Lay a roll on the floor at roughly this angle (degrees, measured for a wide screen), somewhere clear of the globe. */
-  function land(r: Roll, wide: number) {
+  function land(r: Roll, wide: number, across?: number) {
     const W = floor.clientWidth, H = floor.clientHeight;
     const angle = W < H ? Math.sign(wide || 1) * (90 - Math.abs(wide)) : wide;
     // The small globe sits in the lower right corner; leave room round it for its ripples too.
@@ -245,13 +274,29 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
       const u = Math.abs(gx * c + gy * s) - r.box.offsetWidth / 2, v = Math.abs(-gx * s + gy * c) - r.box.offsetHeight / 2;
       return Math.hypot(Math.max(u, 0), Math.max(v, 0)) - gR;
     };
+    // Every pair of rolls already down that cross each other, as the shape where they cross.
+    const others = [...laid].filter((o) => o !== r && !o.node.classList.contains("away")).map(outline);
+    const crossings: Pt[][] = [];
+    for (let i = 0; i < others.length; i++) for (let j = i + 1; j < others.length; j++) {
+      const both = clip(others[i], others[j]);
+      if (both.length > 2 && area(both) > 1) crossings.push(both);
+    }
+    /** How much of the floor this place would make three rolls deep, in px². */
+    const third = (x: number, y: number, deg: number) => {
+      const me = corners(x, y, deg, r.box.offsetWidth, r.box.offsetHeight);
+      return crossings.reduce((sum, cr) => { const p = clip(me, cr); return sum + (p.length > 2 ? area(p) : 0); }, 0);
+    };
+    // A third layer rules a place out ahead of anything else; among the places with none, the one clearest of the globe
+    // wins. Only if every place tried makes one does the least of it win.
     let best = { c: -Infinity, x: W / 2, y: H / 2, a: angle };
-    for (let t = 0; t < 120 && best.c < 0; t++) {
+    for (let t = 0; t < 400 && best.c < 0; t++) {
       const far = t >= 40, a = t >= 80 ? angle + rand(-30, 30) : angle;
-      const x = W * (far ? rand(0.1, 0.9) : rand(0.25, 0.75)), y = H * (far ? rand(0.2, 0.8) : rand(0.3, 0.7));
-      const c = clearance(x, y, a);
+      // Given a place across the floor (0 to 1), the first tries keep to it.
+      const x = W * (far ? rand(0.1, 0.9) : across !== undefined ? across + rand(-0.05, 0.05) : rand(0.25, 0.75)), y = H * (far ? rand(0.2, 0.8) : rand(0.3, 0.7));
+      const deep = third(x, y, a), c = deep > 1 ? -1e6 - deep : clearance(x, y, a);
       if (c > best.c) best = { c, x, y, a };
     }
+    laid.add(r);
     r.rot = best.a;
     turn(r);
     r.node.style.setProperty("--spin", `${rand(8, 18) * (Math.random() < 0.5 ? -1 : 1)}deg`);
@@ -261,7 +306,10 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     const slots = shuffle(onFloor.map((_, i) => i));
     onFloor.forEach((r, i) => {
       r.node.classList.add("loose");
-      land(r, -65 + ((slots[i] + rand(0.15, 0.85)) * 130) / onFloor.length);
+      // On a phone they stand side by side, leaning only a little (within 25° of upright), so they touch at most near
+      // their ends instead of all crossing in the middle.
+      if (phone) land(r, -25 + ((slots[i] + rand(0.25, 0.75)) * 50) / onFloor.length, (i + 0.5) / onFloor.length);
+      else land(r, -65 + ((slots[i] + rand(0.15, 0.85)) * 130) / onFloor.length);
     });
     requestAnimationFrame(() => requestAnimationFrame(() => onFloor.forEach((r) => r.node.classList.remove("loose"))));
   }
@@ -291,8 +339,36 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   // ---------- Pick up / put back ----------
   /** Space a held roll leaves above it (header and Put back) and below it, in px. */
   const TOP_ROOM = 125, BOTTOM_ROOM = 32;
-  /** How far a held roll sits above or below its place in the stylesheet, to centre it in that room. */
-  let lift = 0;
+  /** Where the middle of a held roll sits, in px down the floor: centred in that room. */
+  let heldY = 0;
+  /** Where the middle of each photo of the held roll is, in px from the middle of the roll at its own size. Measured
+      once when it is picked up (and on resize), so winding never has to measure the page while it moves: that made
+      Safari lay the page out again in the middle of every frame. */
+  let centres: number[] = [];
+  /** Put the held roll's middle at the centre of the floor wound by p, and at heldY. It is moved only by its transform:
+      its left and top stay where they were on the floor, because Safari lays the page out again for every frame that
+      they move and rounds them to whole pixels, while the transform moves smoothly between them, so the two together
+      wobbled. */
+  const atHeld = (r: Roll, p: number) => place(r, floor.clientWidth / 2 - r.box.offsetLeft + p, heldY - r.box.offsetTop);
+  /** The middle of a roll's first photo on screen (or of the roll, if it has none). */
+  const firstPhoto = (r: Roll) => {
+    const b = (r.shots[0] ?? r.box).getBoundingClientRect();
+    return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
+  };
+  /** Change a roll's layout between the floor and held (blank frames, the name on the leader) without the photos
+      jumping: the change is made with no animation, the roll is shifted so its first photo is where it was, and only
+      then does it move on to where it is going. Without this a roll lost its blank frames and grew its leader on the
+      first frame and visibly snapped shorter before it moved. */
+  function relayout(r: Roll, change: () => void, from: { dx: number; dy: number }) {
+    const was = firstPhoto(r);
+    r.node.classList.add("loose", "steady");
+    change();
+    place(r, from.dx, from.dy);
+    const now = firstPhoto(r);
+    place(r, from.dx + was.x - now.x, from.dy + was.y - now.y);
+    void r.box.offsetWidth; // the roll starts from here
+    r.node.classList.remove("loose", "steady");
+  }
   /** Size the held strip as large as the screen allows and work out how far it can be wound either way. */
   function fit(r: Roll, keepPan = false) {
     // Up to 855 px tall (half as big again as it used to be), but it stays clear of the header and Put back above and the
@@ -302,8 +378,8 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     // The leader starts 0.12 of the film's height in from the strip's end, which opens 24 px from the left edge.
     const h = r.box.offsetHeight;
     const want = Math.min(855, W * 0.9, H - TOP_ROOM - BOTTOM_ROOM, ((W - 36) * h) / (lead + h * 0.12));
-    // Centred in the room below Put back, rather than where the stylesheet puts a held roll.
-    lift = (TOP_ROOM + H - BOTTOM_ROOM) / 2 - H * 0.56;
+    // Centred in the room below Put back.
+    heldY = (TOP_ROOM + H - BOTTOM_ROOM) / 2;
     scale = want / r.box.offsetHeight;
     const width = r.box.offsetWidth * scale;
     panMax = Math.max(0, (width - floor.clientWidth) / 2 + 24);
@@ -311,13 +387,14 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     if (!keepPan) pan = panMax;
     pan = clamp(pan, -panMax, panMax);
     r.node.style.setProperty("--s", String(scale));
-    place(r, pan, lift);
+    centres = r.shots.map((a) => a.offsetLeft + a.offsetWidth / 2 - r.box.offsetWidth / 2);
+    atHeld(r, pan);
   }
   function hold(r: Roll, focus = true) {
     if (held === r) return;
     unprime();
     if (globeOpen) closeGlobe(false);
-    arrive(r, false);
+    const came = arrive(r, false), fromSet = !!gathered;
     // Picked up from a gathered set, the roll goes back to that set when it is put down.
     let back: Roll[] | null = null;
     if (gathered) { back = gathered.includes(r) ? gathered : null; ungather(false); }
@@ -326,8 +403,10 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     held = r;
     rest(r);
     raise(r);
-    floor.classList.add("holding");
-    r.node.classList.add("held");
+    const open = () => { floor.classList.add("holding"); r.node.classList.add("held"); };
+    // A roll just brought in, or coming out of a gathered set, is already on the move; it carries on from there.
+    if (came || fromSet) open();
+    else relayout(r, open, { dx: r.dx, dy: r.dy });
     fit(r);
     for (const a of r.shots) a.tabIndex = 0;
     // The larger photos are asked for once the roll has finished opening: fetched and decoded during the move, they made it stutter.
@@ -348,24 +427,23 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   function wind(p: number) {
     if (!held) return;
     pan = clamp(p, -panMax, panMax);
-    place(held, pan, lift);
+    atHeld(held, pan);
     windUi();
   }
   /** Where each frame of the held roll would be centred, as a pan value, and the frame now nearest the middle. */
-  function frameStops(r: Roll) {
-    return r.shots.map((a) => clamp((r.box.offsetWidth / 2 - (a.offsetLeft + a.offsetWidth / 2)) * scale, -panMax, panMax));
+  function frameStops() {
+    return centres.map((c) => clamp(-c * scale, -panMax, panMax));
   }
   /** The frame counter, and whether there is a next roll to offer. */
   function windUi() {
     const r = held;
     if (!r) return;
-    const n = r.shots.length;
+    const n = centres.length;
     let at = 0;
-    if (n) {
-      const off = (a: HTMLAnchorElement) => Math.abs(pan + (a.offsetLeft + a.offsetWidth / 2 - r.box.offsetWidth / 2) * scale);
-      r.shots.forEach((a, i) => { if (off(a) < off(r.shots[at])) at = i; });
-    }
-    el("heldCount").textContent = n ? `${at + 1} / ${n}` : "";
+    const off = (c: number) => Math.abs(pan + c * scale);
+    centres.forEach((c, i) => { if (off(c) < off(centres[at])) at = i; });
+    const count = n ? `${at + 1} / ${n}` : "";
+    if (heldCount.textContent !== count) heldCount.textContent = count;
     // Always offered while a roll is open (if there is another roll), so there is always somewhere to go next.
     el("nextRoll").hidden = onFloorNow().length < 2;
   }
@@ -373,20 +451,55 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   function step(dir: 1 | -1) {
     const r = held;
     if (!r) return;
-    const stops = frameStops(r);
+    const stops = frameStops();
     const ahead = dir > 0 ? stops.filter((p) => p < pan - 1) : stops.filter((p) => p > pan + 1).reverse();
-    if (ahead.length) wind(dir > 0 ? Math.max(...ahead) : Math.min(...ahead));
-    else if (dir < 0) wind(panMax);
-    else if (pan > -panMax + 1) wind(-panMax);
+    if (ahead.length) glide(dir > 0 ? Math.max(...ahead) : Math.min(...ahead));
+    else if (dir < 0) glide(panMax);
+    else if (pan > -panMax + 1) glide(-panMax);
     else if (onFloorNow().length > 1) hold(nextRoll(r));
+  }
+  /** Wind the held roll to a place with a short, quick ease, rather than the slower one it opens with. */
+  let glideEnd = 0;
+  function glide(p: number) {
+    const r = held;
+    if (!r) return;
+    r.node.classList.add("gliding");
+    wind(p);
+    clearTimeout(glideEnd);
+    glideEnd = window.setTimeout(() => r.node.classList.remove("gliding"), 500);
+  }
+  /** Catch a gliding roll: it stops where it is on screen, not where it was headed. */
+  function catchGlide(r: Roll) {
+    if (!r.node.classList.contains("gliding")) return;
+    const m = new DOMMatrixReadOnly(getComputedStyle(r.box).transform);
+    clearTimeout(glideEnd);
+    r.node.classList.remove("gliding");
+    // The transform is translate(-50%) then the offset, so its x is the offset less half the strip.
+    wind(m.e + r.box.offsetWidth / 2 - (floor.clientWidth / 2 - r.box.offsetLeft));
+  }
+  /** Let go of a held roll that was being dragged: it settles on the photo nearest where it was let go, and a quick
+      flick goes on to the next one in the direction it was going, never further, so going from photo to photo is a
+      single swipe however hard it is. */
+  function fling(trail: { t: number; x: number }[], still: boolean) {
+    const a = trail[0], b = trail[trail.length - 1], dt = b && a ? b.t - a.t : 0;
+    const v = !still && dt >= 16 ? (b.x - a.x) / dt : 0; // px per ms, + towards the start of the roll
+    const stops = [panMax, ...frameStops(), -panMax];
+    const aim = pan;
+    let to = stops.reduce((best, p) => (Math.abs(p - aim) < Math.abs(best - aim) ? p : best), stops[0]);
+    if (Math.abs(v) > 0.3) {
+      // A flick: the nearest stop beyond where it is now, in the direction it was going, if the nearest one isn't.
+      const ahead = stops.filter((p) => (v > 0 ? p > pan + 1 : p < pan - 1));
+      if (ahead.length && (v > 0 ? to <= pan + 1 : to >= pan - 1)) to = v > 0 ? Math.min(...ahead) : Math.max(...ahead);
+    }
+    glide(to);
   }
   el("nextRoll").addEventListener("click", () => { if (held) hold(nextRoll(held)); });
   function drop(refocus = true) {
     const r = held;
     if (!r) return;
     held = null;
-    floor.classList.remove("holding");
-    r.node.classList.remove("held");
+    const at = { dx: floor.clientWidth / 2 - r.box.offsetLeft + pan, dy: heldY - r.box.offsetTop };
+    relayout(r, () => { floor.classList.remove("holding"); r.node.classList.remove("held"); }, at);
     r.node.style.removeProperty("--s");
     place(r, r.dx, r.dy);
     for (const a of r.shots) a.tabIndex = -1;
@@ -572,6 +685,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
       // A tap on a gathered roll opens it straight away, so a touch on the floor earlier mustn't make it wait for a second tap.
       if (gathered) { dragged = false; pressed = null; byTouch = false; if (e.button === 0) gDrag = { r, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, axis: null, moved: 0 }; return; }
       if (e.button !== 0 || (held && held !== r)) return;
+      if (held === r) catchGlide(r);
       // A finger has no hover to bring the photo it is aiming at to the top first, so the press itself picks the roll
       // the same way: the photo under it wins, even through another roll's film.
       const t = !held && e.pointerType !== "mouse" ? aimed(e.clientX, e.clientY) ?? r : r;
@@ -667,7 +781,12 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     r.node.classList.add("dragging");
     unprime();
     tip.hidden = true;
-    if (held === r) { wind(pan + dx); return; }
+    if (held === r) {
+      wind(pan + dx);
+      drag.trail.push({ t: e.timeStamp, x: pan, y: 0, rot: 0 });
+      while (drag.trail.length > 2 && e.timeStamp - drag.trail[0].t > TRAIL_MS) drag.trail.shift();
+      return;
+    }
     // The grabbed point stays under the pointer. Sideways movement there turns the strip, less so the nearer the
     // grab is to the middle (the added term is the strip's reluctance to spin).
     drag.t = performance.now();
@@ -698,8 +817,9 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     r.node.classList.remove("dragging");
     drag = null;
     r.vx = r.vy = r.vr = 0;
+    if (held === r) { if (dragged && !cancelled) fling(trail, still); return; }
     // Let go while moving and the roll slides on and settles; let go after a pause and it stays put.
-    if (cancelled || held === r || !dragged || still || reduced || trail.length < 2) return;
+    if (cancelled || !dragged || still || reduced || trail.length < 2) return;
     const a = trail[0], b = trail[trail.length - 1], dt = b.t - a.t;
     if (dt < 16) return; // too short a stretch to tell a speed from
     // A released roll travels its speed times SLIDE_MS before it stops, so the limits on distance and turn are limits on speed.
@@ -1267,6 +1387,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
 
   /* isolation keeps the strips' stacking and blending inside the floor, so a raised strip never climbs over the header. */
   .floor { position: relative; z-index: 0; isolation: isolate; flex: 1; min-height: 0; overflow: clip; background: var(--paper); --h: clamp(115px, 13.8vw, 221px); }
+  @media (max-width: 699px) { .floor { --h: 100px; } }
   /* The floor itself: a coarse paper grain with a faint, larger mottling over the paper colour, and light falling off towards the edges as if from one lamp
      overhead. It sits under everything (negative z-index inside the floor's own stacking context), so the film, which
      multiplies what's beneath it, picks the grain up too. */
@@ -1289,7 +1410,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     --band: calc(var(--h) * 0.11); --pitch: calc(var(--h) * 0.136);
     --rot: var(--a, var(--r-wide, 0deg));
     position: absolute; left: var(--x); top: var(--y); z-index: var(--z, auto); height: var(--h);
-    transform: translate(-50%, -50%) translate(var(--dx, 0px), var(--dy, 0px)) rotate(var(--rot)) scale(var(--s, 1));
+    transform: translate(-50%, -50%) translate(var(--dx, 0px), var(--dy, 0px)) rotate(var(--rot)) scale(calc(var(--s, 1) * var(--lift, 1)));
     transition: transform 0.7s var(--ease), left 0.7s var(--ease), top 0.7s var(--ease), opacity 0.5s;
     animation: fall 0.9s var(--ease) var(--delay, 0s) both; cursor: grab;
     /* The film takes every touch itself. With pan-y, Safari on iOS hands any drag that isn't dead level to page
@@ -1297,23 +1418,34 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     touch-action: none;
     user-select: none; -webkit-user-select: none;
   }
-  /* Film is a filter, not paint: it multiplies whatever lies under it, so a roll underneath (photos included) shows
-     through the one on top and every extra layer makes the pile darker. Its own photos are in .top and stay solid. */
+  /* Film lies on the paper like real film with no light behind it: solid, so a roll on top simply covers the ones
+     under it, photos included, and a pile is one grey however many layers deep. (It used to be see-through, multiplied
+     over whatever lay under it, and every crossing made a new, darker shape.) */
   /* The shadow is a box-shadow, not a drop-shadow filter: Safari redraws a filtered layer the slow way whenever it moves. */
   .strip.base {
-    mix-blend-mode: multiply;
     box-shadow: 0 calc(var(--h) * 0.045) calc(var(--h) * 0.075) rgba(0, 0, 0, 0.25);
+    /* A lifted roll's film is covered by the silver in its photo layer: see below. */
+    visibility: var(--hide, visible);
   }
   /* While a roll is being pushed, is sliding, or is being scattered, script places it every frame: no easing on top. */
   .roll.dragging .strip, .roll.loose .strip { transition: opacity 0.4s; }
   .roll.dragging .strip { cursor: grabbing; }
   @keyframes fall { from { opacity: 0; translate: 0 -9vh; scale: 1.16; rotate: var(--spin, 12deg); } }
-  /* A roll lifted by a first tap looks like a hovered one: a little larger. (Its shadow stays as it is; animating a
-     shadow under blended film was what made hovering stutter in Safari.) */
-  .floor:not(.holding, .globing, .gathering) .roll.primed .strip { --s: 1.03; }
+  /* A lifted roll (hovered, or tapped once on a touch screen) is a little larger and turns silver: the film's own
+     colour, solid, with nothing under it showing through.
+     The silver is a copy of the film in the photo layer, shown in place of the real film, which is hidden. The real
+     film grows and shrinks with the photo layer, so when it comes back on letting go the two are the same size and
+     settle together. (It used to stay put, and the photos visibly slid across it for the 0.7s they took to shrink.)
+     The swap is instant on purpose: faded, the real film and its shadow showed round and through the silver until
+     the fade ended and then went, which read as a second change after the first. */
+  .floor:not(.holding, .globing, .gathering) .roll.primed { --lift: 1.03; --silver: 1; --hide: hidden; }
   @media (hover: hover) {
-    .floor:not(.holding, .globing, .gathering) .roll:hover .strip { --s: 1.03; }
+    .floor:not(.holding, .globing, .gathering) .roll:hover { --lift: 1.03; --silver: 1; --hide: hidden; }
   }
+  .top .film::before, .strip.top::before { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: var(--silver, 0); }
+  .top .film::before { z-index: -1; background: linear-gradient(102deg, transparent 32%, rgba(255, 255, 255, 0.08) 46%, transparent 58%), rgb(135, 136, 138); }
+  /* The real film's shadow goes when it is hidden, so the silver brings its own. */
+  .strip.top::before { z-index: -2; box-shadow: 0 calc(var(--h) * 0.045) calc(var(--h) * 0.075) rgba(0, 0, 0, 0.25); }
 
   /* Where each roll lands if the script that scatters them afresh on every visit hasn't run: angles repeat every 7
      rolls and positions every 5, so no two near neighbours match.
@@ -1340,11 +1472,10 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   @media (max-aspect-ratio: 1 / 1) { .strip { --rot: var(--a, var(--r-tall, 90deg)); } }
 
   /* Slide-film base with real holes punched through it: the mask keeps the middle and cuts the two edges.
-     The base colour is how much light the unexposed film lets through (about half), not a paint colour.
-     It is a touch blue on purpose: the warm paper shows through it, and the two cancel to a neutral grey on screen. */
+     The base colour is the grey the old see-through film came to over the paper, so the tone is unchanged. */
   .film { position: relative; height: 100%; }
-  .base .film {
-    background: rgb(135, 136, 138);
+  .base .film { background: rgb(125, 125, 125); }
+  .base .film, .top .film::before {
     --hole: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 81'%3E%3Cpath fill-rule='evenodd' d='M0 0h100v81H0z M40 30h20a4.5 4.5 0 0 1 4.5 4.5v12a4.5 4.5 0 0 1-4.5 4.5H40a4.5 4.5 0 0 1-4.5-4.5v-12a4.5 4.5 0 0 1 4.5-4.5z'/%3E%3C/svg%3E");
     -webkit-mask: var(--hole) left top / var(--pitch) var(--band) repeat-x, var(--hole) left bottom / var(--pitch) var(--band) repeat-x, linear-gradient(#000, #000) center / 100% calc(100% - 2 * var(--band) + 1px) no-repeat;
     mask: var(--hole) left top / var(--pitch) var(--band) repeat-x, var(--hole) left bottom / var(--pitch) var(--band) repeat-x, linear-gradient(#000, #000) center / 100% calc(100% - 2 * var(--band) + 1px) no-repeat;
@@ -1362,7 +1493,9 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   /* Blank frames only pad out a short roll on the floor; a held roll is just its photos. */
   .roll.held .frame.blank { display: none; }
   /* The photo layer keeps the whole row for its spacing but shows only the photos. */
-  .top .leader, .top .blank { visibility: hidden; }
+  .top .leader { visibility: hidden; }
+  /* Its blank frames show only on the silver of a lifted roll. */
+  .top .blank { opacity: var(--silver, 0); }
   /* The roll's name, written on the leader at both ends so one is in view however the strip lies. */
   /* The leader at the start of the film. On the floor it is blank (the name was a lot of text there, and real film has
      no title on it; the tooltip still gives it); once the roll is picked up (or gathered with others from the same place), its name is written on it. */
@@ -1383,8 +1516,13 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
 
   /* ---------- Held: straightened, enlarged, centred; the rest of the floor fades back ---------- */
   /* A held roll is solid: nothing on the floor shows through it. */
-  .roll.held { --x: 50%; --y: 56%; }
-  .roll.held .strip { --rot: 0deg; mix-blend-mode: normal; }
+  .roll.held .strip { --rot: 0deg; mix-blend-mode: normal; will-change: transform; }
+  /* Settling on a photo after a swipe, or stepping to the next with the arrow keys: quicker than opening. */
+  .roll.held.gliding .strip { transition: transform 0.45s var(--ease), opacity 0.5s; }
+  /* For the one frame where a roll's layout changes between the floor and held, it keeps the angle, size and lift it
+     had, so only the layout changes and the photos can be held still (see relayout). */
+  .roll.steady.held .strip { --rot: var(--a, 0deg); }
+  .floor .roll.steady:not(.held) .strip { --rot: 0deg; }
   /* Gathered: straight, and solid like a held roll. Hovering lifts one a little. */
   .roll.gathered .strip { --rot: 0deg; mix-blend-mode: normal; cursor: pointer; }
   .roll.gathered .strip { opacity: var(--gfade, 1); touch-action: none; }
@@ -1455,7 +1593,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   /* ---------- The globe ----------
      .globe-box is laid out at its open size (--big, set by script) in the middle, and shrunk by --k and moved by
      --cx/--cy onto the button in the lower right corner, so opening it is one move. It stays above the film. */
-  .globe-wrap { --gs: clamp(102px, 10.5vw, 156px); position: absolute; inset: 0; z-index: 9000; pointer-events: none; }
+  .globe-wrap { --gs: clamp(122px, 12.6vw, 187px); position: absolute; inset: 0; z-index: 9000; pointer-events: none; }
   .globe-box {
     position: absolute; left: 50%; top: 50%; width: 600px; aspect-ratio: 1;
     transform: translate(-50%, -50%) translate(var(--cx, 0px), var(--cy, 0px)) scale(var(--k, 0.18)); transition: transform 0.75s var(--ease);
@@ -1473,7 +1611,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   }
   /* Cues that it opens: "See more" above it, and rings rippling out until it has been opened once. */
   .globe-cue {
-    position: absolute; bottom: calc(100% + 10px); left: 50%; translate: -50% 0; white-space: nowrap;
+    position: absolute; bottom: calc(100% + 3px); left: 50%; translate: -50% 0; white-space: nowrap;
     color: color-mix(in srgb, var(--ink) 78%, transparent); transition: color 0.2s;
   }
   .globe-open:hover .globe-cue, .globe-open:focus-visible .globe-cue { color: var(--ink); }
