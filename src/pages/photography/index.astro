@@ -9,7 +9,7 @@
  * featured, a random few are. Every collection is on the globe, and the others' photos load only when needed.
  * A small globe sits in the lower right corner. Clicking it opens it up: a turning globe (WebGL, textured with Natural
  * Earth II, public/textures/earth.jpg) with a red marker on each place; clicking a marker puts the globe away and picks up
- * that place's roll, dropping it onto the floor first if it wasn't there. The globe hides while a roll is picked up.
+ * that place's roll straight away (or gathers them, where several were shot there). The globe hides while a roll is picked up.
  * A held roll counts its frames, winds with the arrow keys and offers the next roll at its end; the viewer runs on into
  * the next collection too.
  * Layout comes from :nth-child rules, not inline styles, because the Content-Security-Policy forbids those.
@@ -393,6 +393,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   function gather(list: Roll[], title: string, focus = true, keep = false) {
     returnTo = null;
     unprime();
+    if (globeOpen) closeGlobe(false);
     for (const r of list) arrive(r, false);
     if (held) drop(false);
     if (gathered) ungather(false);
@@ -1087,13 +1088,10 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
       const spot = spotByKey.get(markerAt(e) ?? "");
       const list = spot ? spot.keys.map((k) => byKey.get(k)).filter((r): r is Roll => !!r) : [];
       if (!list.length) return;
-      // Rolls that weren't on the floor fall onto it first, then are picked up (or gathered) once they've landed.
-      closeGlobe(false);
-      const fell = list.map((r) => arrive(r, true)).some(Boolean);
-      const next = () => (list.length === 1 ? hold(list[0]) : gather(list, spot!.place));
-      // Unless the globe was opened again while they fell: picking up now would shut it under the pointer.
-      if (fell && !reduced) window.setTimeout(() => { if (!globeOpen) next(); }, 950);
-      else next();
+      // Straight from the globe to the roll (or the gathered set), with no stop at the floor on the way: hold and gather
+      // put the globe away themselves and bring in quietly any roll that wasn't on the floor.
+      if (list.length === 1) hold(list[0]);
+      else gather(list, spot!.place);
     }
   };
   svg.addEventListener("pointerup", endGlobeDrag);
