@@ -151,6 +151,18 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
 
   const el = (id: string) => document.getElementById(id)!;
   const floor = el("floor");
+  // Safari can run this script before the stylesheet has arrived (Chrome waits for it). Everything below measures the
+  // floor to lay the rolls out, and measured unstyled the floor is tens of thousands of px tall, which put every roll
+  // far off screen for good: a floor with no film on it. So nothing starts until the floor has its styles.
+  const styled = () => getComputedStyle(floor).position === "relative";
+  if (!styled()) {
+    await new Promise<void>((done) => {
+      const t0 = performance.now();
+      const check = () => { if (styled() || performance.now() - t0 > 15000) done(); else setTimeout(check, 30); };
+      for (const link of document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')) link.addEventListener("load", check, { once: true });
+      check();
+    });
+  }
   const tip = el("tip");
   const heldHead = el("heldHead");
   const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -317,7 +329,9 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     floor.classList.add("holding");
     r.node.classList.add("held");
     fit(r);
-    for (const a of r.shots) { a.tabIndex = 0; a.querySelector("img")!.sizes = "(max-width: 700px) 90vw, 1100px"; }
+    for (const a of r.shots) a.tabIndex = 0;
+    // The larger photos are asked for once the roll has finished opening: fetched and decoded during the move, they made it stutter.
+    window.setTimeout(() => { if (held === r) for (const a of r.shots) a.querySelector("img")!.sizes = "(max-width: 700px) 90vw, 1100px"; }, reduced ? 0 : 750);
     r.pick.tabIndex = -1;
     el("heldName").textContent = r.name;
     el("heldTitle").textContent = r.name;
@@ -498,8 +512,12 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
 
   // ---------- Push around on the floor, wind while held ----------
   // A roll on the floor is held by the point you grabbed, so pushing it off-centre swings it round as well as moving it.
-  // gx/gy is that point measured along and across the strip; t is when the pointer last moved.
-  let drag: { r: Roll; x: number; y: number; moved: number; gx: number; gy: number; t: number } | null = null;
+  // gx/gy is that point measured along and across the strip; t is when the pointer last moved; trail is where the
+  // strip has been over the last moments of the push, which is what a throw is measured from.
+  let drag: { r: Roll; x: number; y: number; moved: number; gx: number; gy: number; t: number; fl: number; ft: number; W: number; H: number; ol: number; ot: number; ow: number; trail: { t: number; x: number; y: number; rot: number }[] } | null = null;
+  /** A throw follows the last TRAIL_MS of the push; it carries a roll at most THROW_MAX of the floor's shorter side and
+      turns it at most SPIN_MAX degrees. Thrown by a finger, a roll keeps only TOUCH_THROW of its speed: a phone's floor is small. */
+  const TRAIL_MS = 100, THROW_MAX = 0.25, SPIN_MAX = 20, TOUCH_THROW = 0.6;
   /** The roll the last press on the floor chose, and whether that press was a finger or pen and not a mouse. */
   let pressed: Roll | null = null, byTouch = false;
   /** The roll a first tap has lifted, waiting for the second tap that picks it up. */
@@ -533,8 +551,11 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     const keep = Math.exp(-dt / SLIDE_MS);
     for (const r of sliding) {
       const c = centre(r);
-      if (!moveTo(r, c.x + r.vx * dt, c.y + r.vy * dt)) { r.vx = 0; r.vy = 0; }
-      r.rot += r.vr * dt;
+      // The distance covered in this frame as the speed dies away, worked out exactly so that a throw comes to rest
+      // speed × SLIDE_MS from where it was let go, whatever the frame rate.
+      const reach = SLIDE_MS * (1 - keep);
+      if (!moveTo(r, c.x + r.vx * reach, c.y + r.vy * reach)) { r.vx = 0; r.vy = 0; }
+      r.rot += r.vr * reach;
       turn(r);
       r.vx *= keep; r.vy *= keep; r.vr *= keep;
       if (Math.hypot(r.vx, r.vy) < 0.02 && Math.abs(r.vr) < 0.004) rest(r);
@@ -560,7 +581,9 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
       const box = floor.getBoundingClientRect(), c = centre(t);
       const ox = e.clientX - box.left - c.x, oy = e.clientY - box.top - c.y;
       const cos = Math.cos(t.rot * RAD), sin = Math.sin(t.rot * RAD);
-      drag = { r: t, x: e.clientX, y: e.clientY, moved: 0, gx: ox * cos + oy * sin, gy: -ox * sin + oy * cos, t: performance.now() };
+      drag = { r: t, x: e.clientX, y: e.clientY, moved: 0, gx: ox * cos + oy * sin, gy: -ox * sin + oy * cos, t: performance.now(), trail: [],
+        // Measured once here and reused for every move of this push, so a move never makes the browser lay the page out again.
+        fl: box.left, ft: box.top, W: floor.clientWidth, H: floor.clientHeight, ol: t.box.offsetLeft, ot: t.box.offsetTop, ow: t.box.offsetWidth };
       dragged = false;
       if (!held) raise(t);
     });
@@ -599,15 +622,25 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     const hit = under.find((n) => n.closest(".shot")) ?? under.find((n) => n.closest(".roll"));
     return hit ? byNode.get(hit.closest<HTMLElement>(".roll")!) : undefined;
   }
+  // Worked out once a frame at most: a mouse can report far more often than the screen redraws.
+  let hoverAt: { x: number; y: number } | null = null;
   floor.addEventListener("pointermove", (e) => {
-    if (held || drag || globeOpen || gathered || e.pointerType !== "mouse") return;
-    const r = aimed(e.clientX, e.clientY);
-    if (!r) { tip.hidden = true; return; }
-    raise(r);
-    tip.textContent = r.name;
-    const box = floor.getBoundingClientRect();
-    tip.style.transform = `translate(${e.clientX - box.left + 14}px, ${e.clientY - box.top + 14}px)`;
-    tip.hidden = false;
+    if (e.pointerType !== "mouse") return;
+    const queued = !!hoverAt;
+    hoverAt = { x: e.clientX, y: e.clientY };
+    if (queued) return;
+    requestAnimationFrame(() => {
+      const at = hoverAt!;
+      hoverAt = null;
+      if (held || drag || globeOpen || gathered) return;
+      const r = aimed(at.x, at.y);
+      if (!r) { tip.hidden = true; return; }
+      raise(r);
+      tip.textContent = r.name;
+      const box = floor.getBoundingClientRect();
+      tip.style.transform = `translate(${at.x - box.left + 14}px, ${at.y - box.top + 14}px)`;
+      tip.hidden = false;
+    });
   });
   floor.addEventListener("pointerleave", () => { tip.hidden = true; });
   /** A swipe on a gathered roll: which roll, where the pointer was and started, and the direction it locked to. */
@@ -637,40 +670,50 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     if (held === r) { wind(pan + dx); return; }
     // The grabbed point stays under the pointer. Sideways movement there turns the strip, less so the nearer the
     // grab is to the middle (the added term is the strip's reluctance to spin).
-    const now = performance.now(), dt = Math.max(1, now - drag.t);
-    drag.t = now;
-    const before = centre(r);
+    drag.t = performance.now();
     let cos = Math.cos(r.rot * RAD), sin = Math.sin(r.rot * RAD);
     const ax = drag.gx * cos - drag.gy * sin, ay = drag.gx * sin + drag.gy * cos;
-    const dRot = (ax * dy - ay * dx) / (ax * ax + ay * ay + (r.box.offsetWidth * 0.3) ** 2) / RAD;
+    // A finger is a blunter thing than a mouse and a phone's strips are small, so by touch the strip is slower to spin.
+    const dRot = (ax * dy - ay * dx) / (ax * ax + ay * ay + (drag.ow * (byTouch ? 0.6 : 0.3)) ** 2) / RAD;
     r.rot += dRot;
     turn(r);
     cos = Math.cos(r.rot * RAD); sin = Math.sin(r.rot * RAD);
-    const box = floor.getBoundingClientRect();
-    moveTo(r, e.clientX - box.left - (drag.gx * cos - drag.gy * sin), e.clientY - box.top - (drag.gx * sin + drag.gy * cos));
-    const after = centre(r);
-    // Running average of speed, so the throw follows the last stretch of the push and not one jittery sample.
-    r.vx += ((after.x - before.x) / dt - r.vx) * 0.4;
-    r.vy += ((after.y - before.y) / dt - r.vy) * 0.4;
-    r.vr += (dRot / dt - r.vr) * 0.4;
+    // Kept on the floor, as moveTo does, from the measurements taken at the press.
+    const cx = clamp(e.clientX - drag.fl - (drag.gx * cos - drag.gy * sin), 0, drag.W), cy = clamp(e.clientY - drag.ft - (drag.gx * sin + drag.gy * cos), 0, drag.H);
+    r.dx = cx - drag.ol; r.dy = cy - drag.ot;
+    place(r, r.dx, r.dy);
+    // Remember the last stretch of the push. The throw is measured across all of it on release, not from the gap
+    // between two events: Safari delivers touches unevenly and on a coarse clock, and one short gap reads as a huge speed.
+    drag.trail.push({ t: e.timeStamp, x: cx, y: cy, rot: r.rot });
+    while (drag.trail.length > 2 && e.timeStamp - drag.trail[0].t > TRAIL_MS) drag.trail.shift();
   });
   // Every press starts clean: a swipe on a touch screen ends with no click to clear the flag.
   window.addEventListener("pointerdown", () => { dragged = false; }, true);
-  const endDrag = () => {
+  /** cancelled: the browser took the gesture away (it wasn't let go), so the roll stays where it is and isn't thrown. */
+  const endDrag = (cancelled: boolean) => {
     if (gDrag) { dragged = gDrag.moved >= 6; gDrag = null; snapGathered(); }
     if (!drag) return;
     dragged = drag.moved >= 5;
-    const r = drag.r, still = performance.now() - drag.t > 80;
+    const r = drag.r, still = performance.now() - drag.t > 80, trail = drag.trail;
     r.node.classList.remove("dragging");
     drag = null;
+    r.vx = r.vy = r.vr = 0;
     // Let go while moving and the roll slides on and settles; let go after a pause and it stays put.
-    if (held === r || !dragged || still || reduced) { r.vx = r.vy = r.vr = 0; return; }
+    if (cancelled || held === r || !dragged || still || reduced || trail.length < 2) return;
+    const a = trail[0], b = trail[trail.length - 1], dt = b.t - a.t;
+    if (dt < 16) return; // too short a stretch to tell a speed from
+    // A released roll travels its speed times SLIDE_MS before it stops, so the limits on distance and turn are limits on speed.
+    const vMax = (Math.min(floor.clientWidth, floor.clientHeight) * THROW_MAX) / SLIDE_MS, rMax = SPIN_MAX / SLIDE_MS;
+    const soft = byTouch ? TOUCH_THROW : 1;
+    const vx = ((b.x - a.x) / dt) * soft, vy = ((b.y - a.y) / dt) * soft, k = Math.min(1, vMax / (Math.hypot(vx, vy) || 1));
+    r.vx = vx * k; r.vy = vy * k;
+    r.vr = clamp(((b.rot - a.rot) / dt) * soft, -rMax, rMax);
     r.node.classList.add("loose");
     sliding.add(r);
     if (sliding.size === 1) { slideT = performance.now(); requestAnimationFrame(slide); }
   };
-  window.addEventListener("pointerup", endDrag);
-  window.addEventListener("pointercancel", endDrag);
+  window.addEventListener("pointerup", () => endDrag(false));
+  window.addEventListener("pointercancel", () => endDrag(true));
 
   let wheelSettle = 0;
   floor.addEventListener("wheel", (e) => {
@@ -905,6 +948,8 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     if (w > 0 && canvas.width !== w) { canvas.width = w; canvas.height = w; dirty = true; }
   }
 
+  /** Whether the lines and markers are drawn at the moment. */
+  let detail = false;
   function render() {
     projection.rotate([rot[0], rot[1]]).scale(R * zoom);
     if (gl && glReady) {
@@ -919,6 +964,14 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
       el("fallbackSphere").setAttribute("d", path({ type: "Sphere" }) ?? "");
       el("fallbackLand").setAttribute("d", landShape ? path(landShape) ?? "" : "");
     }
+    // The lines and markers are drawn only on the open globe (and while it opens or closes). On the small one they are
+    // too fine to see, and redrawing them every frame was most of the globe's cost.
+    if (!globeOpen && !fly) {
+      if (detail) { for (const id of ["graticule", "borders", "stateBorders"]) el(id).setAttribute("d", ""); detail = false; }
+      dirty = false;
+      return;
+    }
+    detail = true;
     el("graticule").setAttribute("d", path(graticule) ?? "");
     el("borders").setAttribute("d", borders ? path(borders) ?? "" : "");
     el("stateBorders").setAttribute("d", stateBorders ? path(stateBorders) ?? "" : "");
@@ -971,7 +1024,13 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     });
   }
   const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+  let lastTick = 0, lastDraw = 0;
+  /** Out of sight: behind a held roll, gathered rolls or the viewer, or in a tab nobody is looking at. */
+  const globeHidden = () => !!(held || gathered) || !viewer.hidden || document.hidden;
   function tick(now: number) {
+    // Speeds are per 60th of a second, scaled by the time since the last frame, so the globe turns no faster on a 120 Hz screen.
+    const f = Math.min(50, now - (lastTick || now)) / (1000 / 60);
+    lastTick = now;
     if (fly) {
       const t = Math.min(1, (now - fly.t0) / fly.dur), e = ease(t);
       rot = [fly.from[0] + (fly.to[0] - fly.from[0]) * e, fly.from[1] + (fly.to[1] - fly.from[1]) * e];
@@ -979,10 +1038,11 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
       dirty = true;
       if (t === 1) { fly = null; lastInteract = now; }
     } else if (!dragging) {
-      if (Math.abs(vel) > 0.01) { rot[0] += vel; vel *= 0.94; dirty = true; }
-      else if (!reduced && !hovered && (!globeOpen || now - lastInteract > 4000)) { rot[0] += globeOpen ? 0.08 : 0.15; dirty = true; }
+      if (Math.abs(vel) > 0.01) { rot[0] += vel * f; vel *= Math.pow(0.94, f); dirty = true; }
+      else if (!reduced && !hovered && (!globeOpen || now - lastInteract > 4000)) { rot[0] += (globeOpen ? 0.08 : 0.15) * f; dirty = true; }
     }
-    if (dirty) render();
+    // Nothing is drawn while the globe is out of sight, and the small globe, which only drifts, is drawn 30 times a second.
+    if (dirty && !globeHidden() && (globeOpen || fly || now - lastDraw >= 30)) { render(); lastDraw = now; }
     requestAnimationFrame(tick);
   }
 
@@ -1199,6 +1259,9 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   .spill { --headerH: 68px; position: relative; display: flex; flex-direction: column; height: 100svh; min-height: 320px; margin-top: calc(-1 * var(--headerH)); }
   :global(.site-header) { background: none; backdrop-filter: none; -webkit-backdrop-filter: none; pointer-events: none; }
   :global(.site-header a), :global(.site-header button) { pointer-events: auto; }
+  /* The site-wide grain is a full-screen blended layer over everything, so it had to be re-blended whenever anything
+     under it moved. This page has its own paper grain on the floor, so it goes without. */
+  :global(.grain) { display: none; }
   :global(.site-header .nav a) { color: color-mix(in srgb, var(--ink) 62%, transparent); }
   :global(.site-header .nav a:hover), :global(.site-header .nav a[aria-current="page"]) { color: var(--ink); }
 
@@ -1227,26 +1290,29 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     --rot: var(--a, var(--r-wide, 0deg));
     position: absolute; left: var(--x); top: var(--y); z-index: var(--z, auto); height: var(--h);
     transform: translate(-50%, -50%) translate(var(--dx, 0px), var(--dy, 0px)) rotate(var(--rot)) scale(var(--s, 1));
-    transition: transform 0.7s var(--ease), left 0.7s var(--ease), top 0.7s var(--ease), opacity 0.5s, filter 0.5s;
-    animation: fall 0.9s var(--ease) var(--delay, 0s) both; cursor: grab; touch-action: pan-y;
+    transition: transform 0.7s var(--ease), left 0.7s var(--ease), top 0.7s var(--ease), opacity 0.5s;
+    animation: fall 0.9s var(--ease) var(--delay, 0s) both; cursor: grab;
+    /* The film takes every touch itself. With pan-y, Safari on iOS hands any drag that isn't dead level to page
+       scrolling and cancels it part-way, so rolls could only be pushed sideways. */
+    touch-action: none;
     user-select: none; -webkit-user-select: none;
   }
   /* Film is a filter, not paint: it multiplies whatever lies under it, so a roll underneath (photos included) shows
      through the one on top and every extra layer makes the pile darker. Its own photos are in .top and stay solid. */
+  /* The shadow is a box-shadow, not a drop-shadow filter: Safari redraws a filtered layer the slow way whenever it moves. */
   .strip.base {
     mix-blend-mode: multiply;
-    filter: drop-shadow(0 calc(var(--h) * 0.045) calc(var(--h) * 0.075) rgba(0, 0, 0, 0.25));
+    box-shadow: 0 calc(var(--h) * 0.045) calc(var(--h) * 0.075) rgba(0, 0, 0, 0.25);
   }
   /* While a roll is being pushed, is sliding, or is being scattered, script places it every frame: no easing on top. */
-  .roll.dragging .strip, .roll.loose .strip { transition: opacity 0.4s, filter 0.3s; }
+  .roll.dragging .strip, .roll.loose .strip { transition: opacity 0.4s; }
   .roll.dragging .strip { cursor: grabbing; }
   @keyframes fall { from { opacity: 0; translate: 0 -9vh; scale: 1.16; rotate: var(--spin, 12deg); } }
-  /* A roll lifted by a first tap looks like a hovered one. */
+  /* A roll lifted by a first tap looks like a hovered one: a little larger. (Its shadow stays as it is; animating a
+     shadow under blended film was what made hovering stutter in Safari.) */
   .floor:not(.holding, .globing, .gathering) .roll.primed .strip { --s: 1.03; }
-  .floor:not(.holding, .globing, .gathering) .roll.primed .strip.base { filter: drop-shadow(0 calc(var(--h) * 0.09) calc(var(--h) * 0.14) rgba(0, 0, 0, 0.29)); }
   @media (hover: hover) {
     .floor:not(.holding, .globing, .gathering) .roll:hover .strip { --s: 1.03; }
-    .floor:not(.holding, .globing, .gathering) .roll:hover .strip.base { filter: drop-shadow(0 calc(var(--h) * 0.09) calc(var(--h) * 0.14) rgba(0, 0, 0, 0.29)); }
   }
 
   /* Where each roll lands if the script that scatters them afresh on every visit hasn't run: angles repeat every 7
@@ -1323,7 +1389,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   .roll.gathered .strip { --rot: 0deg; mix-blend-mode: normal; cursor: pointer; }
   .roll.gathered .strip { opacity: var(--gfade, 1); touch-action: none; }
   .roll.gathered.faded .strip { pointer-events: none; }
-  .floor.gather-sliding .roll.gathered .strip { transition: opacity 0.15s, filter 0.3s; cursor: grabbing; }
+  .floor.gather-sliding .roll.gathered .strip { transition: opacity 0.15s; cursor: grabbing; }
 
   @media (hover: hover) { .roll.gathered:hover .strip { translate: 0 -4px; } }
   .held-head.split { justify-content: space-between; align-items: baseline; }
@@ -1369,11 +1435,17 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   /* Rolls that aren't on the floor wait out of sight; one brought in quietly skips the falling-in animation. */
   .roll.away { display: none; }
   .roll.quiet .strip { animation: none; }
-  .roll.held .base .film, .roll.gathered .base .film { background: rgb(24, 24, 24); }
+  /* A held or gathered roll is solid, so its perforations are painted on in the paper's colour rather than cut out with
+     the mask: at this size Safari drew the masked film in tiles and left hairlines of floor showing between them. */
+  .roll.held .base .film, .roll.gathered .base .film {
+    --punch: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 81'%3E%3Cpath fill='%23d3d2cc' d='M40 30h20a4.5 4.5 0 0 1 4.5 4.5v12a4.5 4.5 0 0 1-4.5 4.5H40a4.5 4.5 0 0 1-4.5-4.5v-12a4.5 4.5 0 0 1 4.5-4.5z'/%3E%3C/svg%3E");
+    -webkit-mask: none; mask: none;
+    background: var(--punch) left top / var(--pitch) var(--band) repeat-x, var(--punch) left bottom / var(--pitch) var(--band) repeat-x, rgb(24, 24, 24);
+  }
   .roll.held .shot { cursor: pointer; }
   .roll.held .shot:focus-visible { outline: 2px solid #ecebe6; outline-offset: -2px; }
-  /* Behind an open roll the rest of the floor goes hazy: fainter and out of focus. */
-  .floor.holding .roll:not(.held) .strip, .floor.globing .roll .strip, .floor.gathering .roll:not(.gathered) .strip { opacity: 0.1; pointer-events: none; filter: blur(calc(var(--h) * 0.06)); }
+  /* Behind an open roll the rest of the floor fades almost away. (It used to blur as well, which Safari could not do smoothly.) */
+  .floor.holding .roll:not(.held) .strip, .floor.globing .roll .strip, .floor.gathering .roll:not(.gathered) .strip { opacity: 0.07; pointer-events: none; }
   .held-head { position: absolute; z-index: 10000; inset: calc(var(--headerH) + clamp(8px, 2vw, 24px)) 0 auto; display: flex; justify-content: flex-end; align-items: start; gap: 16px; max-width: none; pointer-events: none; }
   .held-head > * { pointer-events: auto; }
   .close { padding: 8px 0; }
@@ -1465,6 +1537,8 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   .globe :global(.pin .count) { fill: #fff; font: 700 12px/1 var(--sans); text-anchor: middle; pointer-events: none; }
   @keyframes pulse { from { transform: scale(0.5); opacity: 0.9; } to { transform: scale(2.2); opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .globe :global(.pin .pulse) { animation: none; opacity: 0; } }
+  /* The markers are invisible on the small globe, so they don't pulse there. */
+  .globe-wrap:not(.open) :global(.pin .pulse) { animation: none; }
 
   .globe-zoom { position: absolute; z-index: 10000; right: max(16px, var(--gutter)); bottom: clamp(48px, 7vh, 72px); display: grid; gap: 6px; }
   .globe-zoom[hidden] { display: none; }
