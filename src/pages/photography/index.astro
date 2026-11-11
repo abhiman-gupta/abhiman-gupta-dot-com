@@ -237,7 +237,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     const W = floor.clientWidth, H = floor.clientHeight;
     const angle = W < H ? Math.sign(wide || 1) * (90 - Math.abs(wide)) : wide;
     // The small globe sits in the lower right corner; leave room round it for its ripples too.
-    const gBtn = el("globeOpen"), gR = gBtn.offsetWidth / 2 + 36; // with "See more" under it
+    const gBtn = el("globeOpen"), gR = gBtn.offsetWidth / 2 + 36; // with "See more" above it
     const gX = gBtn.offsetLeft + gBtn.offsetWidth / 2, gY = gBtn.offsetTop + gBtn.offsetHeight / 2;
     /** How far the globe's edge is from the strip, in px (negative when they overlap). */
     const clearance = (x: number, y: number, deg: number) => {
@@ -1468,18 +1468,22 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   .globe.grabbing { cursor: grabbing; }
   .globe.pointing { cursor: pointer; }
   .globe-open {
-    position: absolute; right: max(20px, var(--gutter)); bottom: calc(clamp(20px, 3vw, 36px) + 26px + env(safe-area-inset-bottom, 0px));
+    position: absolute; right: max(20px, var(--gutter)); bottom: calc(clamp(20px, 3vw, 36px) + env(safe-area-inset-bottom, 0px));
     width: var(--gs); aspect-ratio: 1; border-radius: 50%; pointer-events: auto; cursor: pointer;
   }
-  /* Cues that it opens: "See more" under it, and rings rippling out until it has been opened once. */
+  /* Cues that it opens: "See more" above it, and rings rippling out until it has been opened once. */
   .globe-cue {
-    position: absolute; top: calc(100% + 10px); left: 50%; translate: -50% 0; white-space: nowrap;
+    position: absolute; bottom: calc(100% + 10px); left: 50%; translate: -50% 0; white-space: nowrap;
     color: color-mix(in srgb, var(--ink) 78%, transparent); transition: color 0.2s;
   }
   .globe-open:hover .globe-cue, .globe-open:focus-visible .globe-cue { color: var(--ink); }
   .globe-open::before, .globe-open::after {
     content: ""; position: absolute; inset: -2px; border-radius: 50%; border: 1px solid var(--ink); opacity: 0; pointer-events: none;
     animation: ripple 2.8s var(--ease) 1.4s infinite;
+    /* Each ring breaks off under "See more" rather than running through it. An angle is the same at every size the
+       ring grows to, so the gap stays on the label all the way out. */
+    -webkit-mask: conic-gradient(transparent 0 28deg, #000 48deg 312deg, transparent 332deg);
+    mask: conic-gradient(transparent 0 28deg, #000 48deg 312deg, transparent 332deg);
   }
   .globe-open::after { animation-delay: 2.1s; }
   .globe-wrap.seen .globe-open::before, .globe-wrap.seen .globe-open::after { animation: none; }
