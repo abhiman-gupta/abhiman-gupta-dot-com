@@ -267,8 +267,14 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     requestAnimationFrame(() => requestAnimationFrame(() => r.node.classList.remove("loose")));
     return true;
   }
-  /** The roll after (or before) this one, through every collection in A to Z order and round again. */
-  const nextRoll = (r: Roll, step = 1) => rolls[(rolls.indexOf(r) + step + rolls.length) % rolls.length];
+  /** The rolls on the floor. A collection that isn't featured joins them only once it has been opened from the globe, so
+      Next, the arrow keys and the viewer never lead to one that hasn't. */
+  const onFloorNow = () => rolls.filter((r) => !r.node.classList.contains("away"));
+  /** The roll after (or before) this one, through the rolls on the floor in A to Z order and round again. */
+  function nextRoll(r: Roll, step = 1) {
+    const list = onFloorNow();
+    return list[(list.indexOf(r) + step + list.length) % list.length];
+  }
 
   // ---------- Pick up / put back ----------
   /** Space a held roll leaves above it (header and Put back) and below it, in px. */
@@ -347,7 +353,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     }
     el("heldCount").textContent = n ? `${at + 1} / ${n}` : "";
     // Always offered while a roll is open (if there is another roll), so there is always somewhere to go next.
-    el("nextRoll").hidden = rolls.length < 2;
+    el("nextRoll").hidden = onFloorNow().length < 2;
   }
   /** Arrow keys on a held roll: on to the next frame, or back to the one before; past the last, the next roll. */
   function step(dir: 1 | -1) {
@@ -358,7 +364,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     if (ahead.length) wind(dir > 0 ? Math.max(...ahead) : Math.min(...ahead));
     else if (dir < 0) wind(panMax);
     else if (pan > -panMax + 1) wind(-panMax);
-    else if (rolls.length > 1) hold(nextRoll(r));
+    else if (onFloorNow().length > 1) hold(nextRoll(r));
   }
   el("nextRoll").addEventListener("click", () => { if (held) hold(nextRoll(held)); });
   function drop(refocus = true) {
@@ -1111,7 +1117,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   let shots: HTMLAnchorElement[] = [];
   let shot = 0;
   let opener: HTMLElement | null = null;
-  const withPhotos = () => rolls.filter((r) => r.shots.length);
+  const withPhotos = () => onFloorNow().filter((r) => r.shots.length);
   /** While the viewer is open everything else on the page is inert, so Tab can't wander off behind it. */
   function shutBehind(on: boolean) {
     for (let n: HTMLElement = viewer; n.parentElement && n !== document.body; n = n.parentElement) {
