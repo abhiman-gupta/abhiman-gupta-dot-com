@@ -18,11 +18,25 @@ jobs:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
+      # "Deployed" isn't "live": GitHub Pages can keep serving the old site for a while. Wait until the live site says
+      # it is the commit that was just deployed (pages.yml writes it to /version.txt), and fail if it never does.
+      - name: Live site is the commit just deployed
+        if: github.event_name == 'workflow_run'
+        env:
+          WANT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          for i in $(seq 1 30); do
+            live=$(curl -s -H 'Cache-Control: no-cache' "https://abhimangupta.com/version.txt?t=$(date +%s)" | tr -d '[:space:]')
+            if [ "$live" = "$WANT" ]; then echo "Live site is $WANT"; exit 0; fi
+            echo "Live site is ${live:-unknown}, waiting for $WANT ($i/30)"
+            sleep 10
+          done
+          echo "::error::After 5 minutes the live site still isn't commit $WANT (it says ${live:-nothing}). The deploy didn't take."
+          exit 1
       - name: Key pages and files are online
         run: |
-          sleep 60 # give GitHub Pages a minute to publish
           fail=0
-          for path in / /photography/ /recommended/ /og.jpg /sitemap.xml /robots.txt /.well-known/security.txt; do
+          for path in / /professional/ /photography/ /recommended/ /og.jpg /sitemap.xml /robots.txt /.well-known/security.txt; do
             code=$(curl -s -o /dev/null -w '%{http_code}' --retry 3 --retry-delay 10 "https://abhimangupta.com$path")
             if [ "$code" = "200" ]; then echo "OK      $path"; else echo "::error::$path returned HTTP $code"; fail=1; fi
           done
