@@ -56,7 +56,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
               <div class="frames">
                 <div class="leader"><span class="lname">{l.name}</span><span class="lplace">{l.where}</span></div>
                 {l.frames.map((t) => (
-                  <div class="frame"><img data-src={t.src} data-srcset={t.srcset} width={t.w} height={t.h} sizes="200px" alt="" draggable="false" /></div>
+                  <div class="frame" style={`--r: ${t.w} / ${t.h}`}><img data-src={t.src} data-srcset={t.srcset} width={t.w} height={t.h} sizes="200px" alt="" draggable="false" /></div>
                 ))}
                 {Array.from({ length: l.blanks }, () => <div class="frame blank" />)}
               </div>
@@ -67,7 +67,7 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
               <div class="frames">
                 <div class="leader" aria-hidden="true"><span class="lname">{l.name}</span><span class="lplace">{l.where}</span></div>
                 {l.frames.map((t, i) => (
-                  <a href={t.full} class="frame shot" data-full={t.full} data-full-srcset={t.fullSrcset} data-i={i} tabindex="-1">
+                  <a href={t.full} class="frame shot" style={`--r: ${t.w} / ${t.h}`} data-full={t.full} data-full-srcset={t.fullSrcset} data-i={i} tabindex="-1">
                     <img data-src={t.src} data-srcset={t.srcset} width={t.w} height={t.h} sizes="200px" alt={`${l.name}, photo ${i + 1}`} draggable="false" />
                   </a>
                 ))}
@@ -1551,8 +1551,10 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
      its margin). A held roll stops just after its last frame, the same gap from it as between frames. */
   .frames { display: flex; align-items: stretch; gap: calc(var(--h) * 0.04); height: 100%; padding: var(--band) calc(var(--h) * 0.57) var(--band) calc(var(--h) * 0.12); }
   .roll.held .frames { padding-right: calc(var(--h) * 0.04); }
-  .frame { flex: none; display: block; height: 100%; border-radius: calc(var(--h) * 0.012); overflow: hidden; }
-  .frame img { height: 100%; width: auto; max-width: none; background: #2a2927; }
+  /* A frame takes its width from its photo's shape (--r), not from the photo inside it: Safari does not work a photo's
+     width out again when the film's height changes, so an open roll's two layers came apart. */
+  .frame { flex: none; display: block; height: 100%; aspect-ratio: var(--r, 3 / 2); border-radius: calc(var(--h) * 0.012); overflow: hidden; }
+  .frame img { display: block; width: 100%; height: 100%; max-width: none; object-fit: cover; background: #2a2927; }
   /* An unexposed frame is the densest part of slide film, so it is darker than the base around it. */
   .frame.blank { aspect-ratio: 3 / 2; background: rgba(0, 0, 0, 0.26); }
   /* Blank frames only pad out a short roll on the floor; a held roll is just its photos. */
