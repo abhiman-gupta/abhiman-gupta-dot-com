@@ -540,7 +540,8 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   for (const r of rolls) {
     r.node.addEventListener("pointerdown", (e) => {
       // Gathered rolls are dragged (or swiped) sideways as a set, and a tap opens one.
-      if (gathered) { dragged = false; if (e.button === 0) gDrag = { r, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, axis: null, moved: 0 }; return; }
+      // A tap on a gathered roll opens it straight away, so a touch on the floor earlier mustn't make it wait for a second tap.
+      if (gathered) { dragged = false; pressed = null; byTouch = false; if (e.button === 0) gDrag = { r, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, axis: null, moved: 0 }; return; }
       if (e.button !== 0 || (held && held !== r)) return;
       // A finger has no hover to bring the photo it is aiming at to the top first, so the press itself picks the roll
       // the same way: the photo under it wins, even through another roll's film.
@@ -1112,6 +1113,12 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
   let shot = 0;
   let opener: HTMLElement | null = null;
   const withPhotos = () => rolls.filter((r) => r.shots.length);
+  /** While the viewer is open everything else on the page is inert, so Tab can't wander off behind it. */
+  function shutBehind(on: boolean) {
+    for (let n: HTMLElement = viewer; n.parentElement && n !== document.body; n = n.parentElement) {
+      for (const sib of n.parentElement.children) if (sib !== n && sib instanceof HTMLElement && sib.tagName !== "SCRIPT") sib.inert = on;
+    }
+  }
   const canStep = () => shots.length > 1 || withPhotos().length > 1;
   function showShot(i: number) {
     if (!viewRoll) return;
@@ -1146,12 +1153,14 @@ const markers = JSON.stringify(locations.map((l) => ({ key: l.slug, name: l.name
     shots = r.shots;
     el("viewerPlace").textContent = r.name;
     viewer.hidden = false;
+    shutBehind(true);
     document.documentElement.classList.add("viewer-open");
     showShot(Number(a.dataset.i));
     el("viewerClose").focus();
   }
   function closeViewer() {
     viewer.hidden = true;
+    shutBehind(false);
     document.documentElement.classList.remove("viewer-open");
     viewerImg.removeAttribute("src");
     viewerImg.removeAttribute("srcset");
